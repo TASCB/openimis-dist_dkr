@@ -1,6 +1,7 @@
 services:
   redis:
     image: redis:latest
+    container_name: ${PROJECT_NAME:-openimis}-redis
     restart: always
     ports:
       - "6379:6379"
