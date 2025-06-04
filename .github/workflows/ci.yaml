@@ -39,17 +39,31 @@ jobs:
         run: |
           cp .env.example .env
           echo 'DEMO_DATASET=true' >> .env
-          cp .env.lightning.example .env.lightning
-          docker compose  up -d db
-          source .env
-          source .env.lightning
-          echo "Waiting for database to be healthy..."
-          until [ "`docker inspect -f {{.State.Health.Status}} ${PROJECT_NAME:-openimis}-db`" == "healthy" ]; do
-            sleep 2;
-          done
-          echo "Database is ready"
-          docker compose run -e  PGPASSWORD=${POSTGRES_PASSWORD} --rm db createdb -h db -U ${POSTGRES_USER}  ${POSTGRES_DB}
+          echo 'BE_TAG=develop' >> .env
+          echo 'FE_TAG=develop' >> .env
+          echo 'SECRET_KEY=cypressci' >> .env
+          cp .env.redis.example .env.redis
+          cp .env.openSearch.example .env.openSearch
+          cp .env.database.example .env.database
+
           docker compose up -d
+
+          echo "Waiting for 'Starting Django...' in backend logs..."
+          BACKEND_CONTAINER=$(docker compose ps -q backend)
+
+          for i in {1..30}; do
+            if docker logs $BACKEND_CONTAINER 2>&1 | grep -q "Starting Django..."; then
+              echo "Server is ready"
+              exit 0
+            fi
+            echo "Not ready yet... retry $i/30"
+            docker logs --tail 50 $BACKEND_CONTAINER || true
+            sleep 10
+          done
+
+          echo "Server did not start in 5 minutes"
+          docker logs $BACKEND_CONTAINER || true
+          exit 1
 
       - name: Cypress run
         uses: cypress-io/github-action@v6

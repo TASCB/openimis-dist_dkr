@@ -1,4 +1,7 @@
 **/.env
+.env.openSearch
+.env.redis
+.env.database
 openimis_env/*
 data/*
 openimis-dist_dkr.code-workspace

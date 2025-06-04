@@ -17,7 +17,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 100s
-    init: true
     ulimits:
       nproc: 65535
       nofile:
@@ -32,6 +31,3 @@ services:
   ## WARNING:
     ## exposing the database port outside the openimis-net network
     ## may lead to security issue (depending on your network topology)
-    # ports:
-    #  - 1433:1433
-  
