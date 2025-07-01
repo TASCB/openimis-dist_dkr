@@ -12,6 +12,6 @@ fi
 
 echo "🚀 Running dashboard configuration upload..."
 
-cd /openimis-be/openIMIS  # adjust if needed
+cd /openimis-be/openIMIS
 
 exec python3 manage.py upload_opensearch_dashboards --host-domain http://backend:8080 --imis-password "${OPENIMIS_ADMIN_PASS}"
