@@ -10,7 +10,7 @@ else
   echo "OpenSearch reports repo already exists, skipping clone."
 fi
 
-echo "🚀 Running dashboard configuration upload..."
+echo "Running dashboard configuration upload..."
 
 cd /openimis-be/openIMIS
 
