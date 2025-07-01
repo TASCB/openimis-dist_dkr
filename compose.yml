@@ -10,10 +10,6 @@ include:
     env_file: 
      - .env  
      - .env.openSearch
-  - path: compose.openSearchInit.yml
-    env_file: 
-     - .env
-     - .env.openSearch
   - path: compose.cache.yml
     env_file: 
      - .env

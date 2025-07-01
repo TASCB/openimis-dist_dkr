@@ -1,5 +1,6 @@
 x-api: &default-api
-  image: ghcr.io/openimis/openimis-be:${BE_TAG:-develop}
+  build:
+    context: /home/user/openIMIS-24-10/docker/openimis-be_py
   environment:
     - DB_DEFAULT=${DB_DEFAULT:-postgresql}
     - DB_HOST=${DB_HOST}
@@ -13,9 +14,6 @@ x-api: &default-api
     - CELERY_BROKER_URL=amqp://rabbitmq
     - MODE=${MODE:-Prod}
     - HOSTS=${HOSTS}
-    - CACHE_BACKEND=${CACHE_BACKEND}
-    - CACHE_URL=${CACHE_URL}
-    - CACHE_OPTIONS=${CACHE_OPTIONS}
     - OPENSEARCH_ADMIN=${OPENSEARCH_ADMIN}
     - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
     - OPENSEARCH_HOSTS=${OPENSEARCH_HOSTS}
@@ -30,7 +28,8 @@ x-api: &default-api
 
 services:
   frontend:
-    image: ghcr.io/openimis/openimis-fe:${FE_TAG:-develop}
+    build:
+      context: /home/user/openIMIS-24-10/frontend/openimis-fe_js
     restart: always
     environment:
       - REACT_APP_API_URL=api
@@ -51,36 +50,27 @@ services:
     ports:
       - ${HTTP_PORT:-80}:80
       - ${HTTPS_PORT:-443}:443
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.${PROJECT_NAME}.rule=Host("${DOMAIN}")
-      - traefik.http.routers.${PROJECT_NAME}.entrypoints=websecure
-      - traefik.http.routers.${PROJECT_NAME}.tls=true
-      - traefik.docker.network=proxy
-      - traefik.http.services.${PROJECT_NAME}.loadbalancer.server.port=80
-
-      - ./conf/nginx:/conf/
-  migrations:
-    <<: *default-api
-    command: init
-    restart: no
   backend:
     <<: *default-api
     command: start
-    restart: always
-    depends_on:
-      migrations:
-        condition: service_completed_successfully   
+    restart: always   
   worker:
     <<: *default-api
     command: worker
     restart: always
-    depends_on:
-      migrations:
-        condition: service_completed_successfully
     deploy:
       mode: replicated
       replicas: ${WORKER_REPLICAS:-3}
+  opensearch-init:
+    <<: *default-api
+    entrypoint: ["/entrypoint-init-opensearch.sh"]
+    command: []
+    depends_on:
+      - db
+      - backend
+      - opensearch
+    volumes:
+      - ./entrypoint-init-opensearch.sh:/entrypoint-init-opensearch.sh:ro
   rabbitmq:
     image: rabbitmq:3-management
     restart: always
