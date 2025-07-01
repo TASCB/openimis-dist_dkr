@@ -1,6 +1,5 @@
 x-api: &default-api
-  build:
-    image: ghcr.io/openimis/openimis-be:${BE_TAG:-develop}
+  image: ghcr.io/openimis/openimis-be:${BE_TAG:-develop}
   environment:
     - DB_DEFAULT=${DB_DEFAULT:-postgresql}
     - DB_HOST=${DB_HOST}
