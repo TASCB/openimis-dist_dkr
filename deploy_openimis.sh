@@ -6,7 +6,7 @@ echo "Using existing env files"
 else
 echo "creating env files from example"
 cp .env.example .env
-cp .env.redis.example .env.redis
+cp .cache.example .env.cache
 cp .env.openSearch.example .env.openSearch
 cp .env.database.example .env.database
 fi

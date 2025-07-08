@@ -1,6 +1,6 @@
 **/.env
 .env.openSearch
-.env.redis
+.env.cache
 .env.database
 openimis_env/*
 data/*

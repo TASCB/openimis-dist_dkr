@@ -4,7 +4,7 @@ include:
   - path: compose.base.yml
     env_file: 
     - .env
-    - .env.redis
+    - .env.cache
     - .env.openSearch
   - path: compose.openSearch.yml
     env_file: 
@@ -13,7 +13,7 @@ include:
   - path: compose.cache.yml
     env_file: 
      - .env
-     - .env.redis
+     - .env.cache
 #  - path: compose.certbot.yml
 
       

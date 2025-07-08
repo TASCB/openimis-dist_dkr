@@ -42,7 +42,7 @@ jobs:
           echo 'BE_TAG=develop' >> .env
           echo 'FE_TAG=develop' >> .env
           echo 'SECRET_KEY=cypressci' >> .env
-          cp .env.redis.example .env.redis
+          cp .env.cache.example .env.cache
           cp .env.openSearch.example .env.openSearch
           cp .env.database.example .env.database
 
