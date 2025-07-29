@@ -38,10 +38,12 @@ jobs:
       - name: Setup environment
         run: |
           cp .env.example .env
+          sed -i.bak '/^DEMO_DATASET=/d;/^BE_TAG=/d;/^FE_TAG=/d;/^SECRET_KEY=/d' .env
+          rm -f .env.bak
+          echo 'SECRET_KEY=cypressci' >> .env
           echo 'DEMO_DATASET=true' >> .env
           echo 'BE_TAG=develop' >> .env
           echo 'FE_TAG=develop' >> .env
-          echo 'SECRET_KEY=cypressci' >> .env
           cp .env.cache.example .env.cache
           cp .env.openSearch.example .env.openSearch
           cp .env.database.example .env.database
