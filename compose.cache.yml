@@ -4,10 +4,10 @@ services:
     restart: always
     ports:
       - "6379:6379"
-    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD} --maxmemory ${REDIS_MAX_MEMORY:-256mb}
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis-database:/data
-      #- ./conf/redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./conf/redis/redis.conf:/usr/local/etc/redis/redis.conf
     env_file:
       - ".env.cache"
     environment:
