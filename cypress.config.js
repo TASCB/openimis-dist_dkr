@@ -49,6 +49,7 @@ module.exports = defineConfig({
     baseUrl: 'http://localhost/front',
     defaultCommandTimeout: 10000,
     taskTimeout: 300000,
+    downloadsFolder: 'cypress/downloads',
     setupNodeEvents(on, config) {
       on('task', {
           checkSetup() {
