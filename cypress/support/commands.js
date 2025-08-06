@@ -1,25 +1,19 @@
-// ***********************************************
-// This example commands.js shows you how to
-// create various custom commands and overwrite
-// existing commands.
-//
-// For more comprehensive examples of custom
-// commands please read more here:
-// https://on.cypress.io/custom-commands
-// ***********************************************
-//
-//
-// -- This is a parent command --
-// Cypress.Commands.add('login', (email, password) => { ... })
-//
-//
-// -- This is a child command --
-// Cypress.Commands.add('drag', { prevSubject: 'element'}, (subject, options) => { ... })
-//
-//
-// -- This is a dual command --
-// Cypress.Commands.add('dismiss', { prevSubject: 'optional'}, (subject, options) => { ... })
-//
-//
-// -- This will overwrite an existing command --
-// Cypress.Commands.overwrite('visit', (originalFn, url, options) => { ... })
+Cypress.Commands.add('login', () => {
+  cy.visit('/');
+  cy.fixture('cred').then((cred) => {
+    cy.get('input[type="text"]').type(cred.username)
+    cy.get('input[type="password"]').type(cred.password)
+    cy.get('button[type="submit"]').click()
+    cy.contains('Welcome Admin Admin!')
+  })
+})
+
+Cypress.Commands.add('login_admin_interface', () => {
+  cy.visit('/api/admin');
+  cy.fixture('cred').then((cred) => {
+    cy.get('input[type="text"]').type(cred.username)
+    cy.get('input[type="password"]').type(cred.password)
+    cy.get('input[type="submit"]').click()
+    cy.contains('Site administration').should('be.visible')
+  })
+})
