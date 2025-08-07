@@ -5,6 +5,71 @@ describe('Django admin workflows', () => {
     cy.loginAdminInterface()
   });
 
+  it('Configures menu', function () {
+    cy.deleteModuleConfig("fe-core")
+    cy.visit('/')
+    cy.get('div.MuiToolbar-root').should('exist') // default top toolbar menu
+
+    cy.visit('/api/admin');
+    cy.contains('a', 'Module configurations').click()
+
+    // Create menu config using fixture config file
+    cy.contains('a', 'Add module configuration').click()
+    cy.get('input[name="module"]').type('fe-core')
+    cy.get('select[name="layer"]').select('frontend')
+    cy.get('input[name="version"]').type(1)
+
+    cy.fixture('menu-config-sp.json').then((config) => {
+      const configString = JSON.stringify(config, null, 2);
+      cy.get('textarea[name="config"]')
+        .type(configString, {
+          parseSpecialCharSequences: false,
+          delay: 0  // Type faster
+        });
+      cy.get('input[name="is_exposed"]').check()
+
+      cy.get('input[value="Save"]').click()
+
+      cy.visit('/')
+      cy.get('div.MuiDrawer-root').should('exist') // left drawer menu
+
+      const expectedMenuItems = [
+        'Social Protection',
+        'Dashboards',
+        'Payments',
+        'Grievance',
+        'Tasks Management',
+        'Administration',
+      ]
+      const expectedSubMenuItems = [
+        'Individuals',
+        'Groups',
+        'Import Data - API',
+        'Programmes',
+      ]
+      cy.get('div.MuiDrawer-root').first().within(() => {
+        cy.shouldHaveMenuItemsInOrder(expectedMenuItems)
+
+        cy.contains('div[role="button"]', 'Social Protection').click();
+
+        cy.contains('div[role="button"]', 'Social Protection')
+          .siblings('.MuiCollapse-root').within(() => {
+            cy.shouldHaveMenuItemsInOrder(expectedSubMenuItems)
+
+            // Verify submenu persistence selected state
+            cy.contains('div[role="button"]', 'Programmes').click();
+            cy.contains('div.Mui-selected[role="button"]', 'Programmes');
+
+            cy.contains('div[role="button"]', 'Individuals').click();
+            cy.contains('div.Mui-selected[role="button"]', 'Individuals');
+
+            cy.visit('/front/benefitPlans')
+            cy.contains('div.Mui-selected[role="button"]', 'Programmes');
+          })
+      });
+    })
+  })
+
   it('Configuring individual json schema reflects in advanced filters and upload template', function () {
     cy.deleteModuleConfig("individual")
 
@@ -26,7 +91,7 @@ describe('Django admin workflows', () => {
 
       cy.get('input[value="Save"]').click()
 
-      cy.visit('/individuals')
+      cy.visit('/front/individuals')
       cy.contains('li', 'UPLOAD').click()
       cy.contains('button', 'Template').click()
 
