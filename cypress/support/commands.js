@@ -8,13 +8,33 @@ Cypress.Commands.add('login', () => {
   })
 })
 
-Cypress.Commands.add('login_admin_interface', () => {
+Cypress.Commands.add('loginAdminInterface', () => {
   cy.visit('/api/admin');
   cy.fixture('cred').then((cred) => {
     cy.get('input[type="text"]').type(cred.username)
     cy.get('input[type="password"]').type(cred.password)
     cy.get('input[type="submit"]').click()
     cy.contains('Site administration').should('be.visible')
+  })
+})
+
+Cypress.Commands.add('deleteModuleConfig', (moduleName) => {
+  cy.visit('/api/admin/core/moduleconfiguration/');
+  cy.get('table#result_list').then(($table) => {
+    const configLink = $table.find(`a:contains("${moduleName}")`)
+
+    // Delete any existing module config with the given name
+    if (configLink.length) {
+      cy.wrap(configLink).click()
+      cy.contains('a.deletelink', 'Delete').click()
+      cy.get('input[type="submit"][value*="Yes"]').click()
+      cy.contains(`a:contains("${moduleName}")`).should('not.exist')
+    } else {
+      Cypress.log({
+        name: 'deleteModuleConfig',
+        message: `Module Configuration named ${moduleName} not found, nothing to delete`,
+      });
+    }
   })
 })
 
