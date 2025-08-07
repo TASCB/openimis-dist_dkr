@@ -87,3 +87,62 @@ Cypress.Commands.add('deleteActivities', (activityNames) => {
     });
   });
 });
+
+Cypress.Commands.add('deleteProgram', (programName) => {
+  cy.visit('/front/benefitPlans');
+  cy.contains('tfoot', 'Rows Per Page')
+
+  cy.get('body').then(($body) => {
+    const programRows = $body.find(`td:contains("${programName}")`).closest('tr');
+
+    if (programRows.length > 0) {
+      cy.log(`Found ${programRows.length} program(s) to delete`);
+
+      programRows.each((_, row) => {
+        cy.wrap(row).within(() => {
+          // Find and click the Delete button in this row
+          cy.get('button[title="Delete"]')
+            .click();
+        });
+
+        // Confirm deletion in dialog
+        cy.contains('button', 'Ok')
+          .should('be.visible')
+          .click();
+
+        // Wait for deletion to complete
+        cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
+
+        // Verify deletion in expanded journal drawer
+        cy.get('.MuiDrawer-paperAnchorRight button')
+          .first()
+          .click();
+
+        cy.get('ul.MuiList-root li')
+          .first()
+          .should('contain', `Delete programme`);
+          // .should('contain', `Delete programme ${programName}`); //TODO: switch to this after fix
+      });
+    } else {
+      Cypress.log({
+        name: 'deleteProgram',
+        message: `No programs found with name "${programName}"`,
+      });
+    }
+  });
+});
+
+Cypress.Commands.add('enterMuiInput', (label, value) => {
+  cy.contains('label', label)
+    .siblings('.MuiInputBase-root')
+    .find('input')
+    .type(value);
+})
+
+Cypress.Commands.add('assertMuiInput', (label, value) => {
+  cy.contains('label', label)
+    .siblings('.MuiInputBase-root')
+    .find('input')
+    .should('be.visible')
+    .and('have.value', value);
+})
