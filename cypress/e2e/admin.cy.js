@@ -61,5 +61,52 @@ describe('Django admin workflows', () => {
       });
     })
   })
+
+  it('Configures project activities', function () {
+    const activities = [
+      'E2E Tree Planting',
+      'E2E River Cleaning',
+      'E2E Soil Conservation',
+      'E2E Extra',
+    ];
+    const newName = 'E2E Water Conservation'
+
+    cy.deleteActivities(activities.concat([newName]))
+
+    // Create
+    activities.forEach(activityName => {
+      cy.contains('a', 'Activities').click()
+      cy.contains('a', 'Add Activity').click()
+      cy.get('input[name="name"]').type(activityName)
+      cy.get('input[value="Save"]').click()
+      cy.contains('td.field-name', activityName)
+    })
+
+    // Update
+    cy.contains('td.field-name', 'E2E Soil Conservation')
+      .parent('tr')
+      .find('th.field-id a')
+      .click();
+    cy.get('input[name="name"]').clear().type(newName)
+    cy.get('input[value="Save"]').click()
+    cy.contains('td.field-name', newName)
+      .parent('tr')
+      .within(() => {
+        cy.get('td.field-name').should('contain', newName);
+        cy.get('td.field-version').should('have.text', '2');
+      });
+
+    // Soft Delete
+    cy.contains('td.field-name', 'E2E Extra')
+      .parent('tr')
+      .find('th.field-id a')
+      .click();
+    cy.get('input[name="is_deleted"]').check()
+    cy.get('input[value="Save"]').click()
+    cy.contains('td.field-name', 'E2E Extra')
+      .siblings('td.field-is_deleted')
+      .find('img[alt="True"]')
+      .should('exist');
+  })
 })
 
