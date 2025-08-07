@@ -38,6 +38,19 @@ Cypress.Commands.add('deleteModuleConfig', (moduleName) => {
   })
 })
 
+Cypress.Commands.add('shouldHaveMenuItemsInOrder', (expectedMenuNames) => {
+  cy.get('div[role="button"]')
+  .filter(':visible')
+  .should(($buttons) => {
+    expect($buttons).to.have.length(expectedMenuNames.length);
+
+    // Check each sub menu item text and order
+    expectedMenuNames.forEach((itemText, index) => {
+      expect($buttons.eq(index)).to.contain(itemText);
+    });
+  });
+})
+
 Cypress.Commands.add('deleteActivities', (activityNames) => {
   cy.visit('/api/admin/social_protection/activity/');
   cy.get('body').then(($body) => {
