@@ -46,7 +46,7 @@ function waitForServerToStart(url) {
 module.exports = defineConfig({
   e2e: {
     projectId: "q6gc25", // Cypress Cloud, needed for recording
-    baseUrl: 'http://localhost/front',
+    baseUrl: 'http://localhost',
     defaultCommandTimeout: 10000,
     taskTimeout: 300000,
     downloadsFolder: 'cypress/downloads',
@@ -56,8 +56,7 @@ module.exports = defineConfig({
             return fs.existsSync(serverFlagPath)
           },
           completeSetup() {
-            const rootUrl = config.baseUrl.replace("/front", "") 
-            const url = `${rootUrl}/api/graphql`
+            const url = `${config.baseUrl}/api/graphql`
             return waitForServerToStart(url)
               .then(() => {
                 console.log('Server is ready!')
