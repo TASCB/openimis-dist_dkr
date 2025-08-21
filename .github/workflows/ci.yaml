@@ -44,6 +44,7 @@ jobs:
           echo 'DEMO_DATASET=true' >> .env
           echo 'BE_TAG=develop' >> .env
           echo 'FE_TAG=develop' >> .env
+          echo 'HOSTS=localhost' >> .env
           cp .env.cache.example .env.cache
           cp .env.openSearch.example .env.openSearch
           cp .env.database.example .env.database
