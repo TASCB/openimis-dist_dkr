@@ -71,51 +71,32 @@ describe('Django admin workflows', () => {
   })
 
   it('Configuring individual json schema reflects in advanced filters and upload template', function () {
-    cy.deleteModuleConfig("individual")
+    cy.setModuleConfig('individual', 'individual-config-minimal.json')
 
-    cy.contains('a', 'Module configurations').click()
+    cy.visit('/front/individuals')
+    cy.contains('li', 'UPLOAD').click()
+    cy.contains('button', 'Template').click()
 
-    // Create individual config using fixture config file
-    cy.contains('a', 'Add module configuration').click()
-    cy.get('input[name="module"]').type('individual')
-    cy.get('select[name="layer"]').select('backend')
-    cy.get('input[name="version"]').type(1)
+    const downloadedFilename = path.join(
+      Cypress.config('downloadsFolder'),
+      'individual_upload_template.csv'
+    );
+    cy.readFile(downloadedFilename, { timeout: 15000 }).should('exist');
 
-    cy.fixture('individual-config-minimal.json').then((config) => {
-      const configString = JSON.stringify(config, null, 2);
-      cy.get('textarea[name="config"]')
-        .type(configString, {
-          parseSpecialCharSequences: false,
-          delay: 0  // Type faster
-        });
+    cy.readFile(downloadedFilename)
+      .then(async (text) => {
+        expect(text.length).to.be.greaterThan(0);
+        expect(text).to.contain('able_bodied');
+        expect(text).to.contain('educated_level');
+        expect(text).to.contain('number_of_children');
+      });
 
-      cy.get('input[value="Save"]').click()
-
-      cy.visit('/front/individuals')
-      cy.contains('li', 'UPLOAD').click()
-      cy.contains('button', 'Template').click()
-
-      const downloadedFilename = path.join(
-        Cypress.config('downloadsFolder'),
-        'individual_upload_template.csv'
-      );
-      cy.readFile(downloadedFilename, { timeout: 15000 }).should('exist');
-
-      cy.readFile(downloadedFilename)
-        .then(async (text) => {
-          expect(text.length).to.be.greaterThan(0);
-          expect(text).to.contain('able_bodied');
-          expect(text).to.contain('educated_level');
-          expect(text).to.contain('number_of_children');
-        });
-
-      cy.contains('button', 'Cancel').click()
-      cy.contains('button', 'Advanced Filters').click()
-      cy.get('div[role="dialog"] div.MuiSelect-select').click()
-      cy.contains('li[role="option"]', 'Able bodied')
-      cy.contains('li[role="option"]', 'Educated level')
-      cy.contains('li[role="option"]', 'Number of children')
-    });
+    cy.contains('button', 'Cancel').click()
+    cy.contains('button', 'Advanced Filters').click()
+    cy.get('div[role="dialog"] div.MuiSelect-select').click()
+    cy.contains('li[role="option"]', 'Able bodied')
+    cy.contains('li[role="option"]', 'Educated level')
+    cy.contains('li[role="option"]', 'Number of children')
   })
 
   it('Configures project activities', function () {

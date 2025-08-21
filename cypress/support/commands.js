@@ -98,7 +98,7 @@ Cypress.Commands.add('deleteActivities', (activityNames) => {
 
 Cypress.Commands.add('deleteProgram', (programName) => {
   cy.visit('/front/benefitPlans');
-  cy.contains('tfoot', 'Rows Per Page')
+  cy.contains('tfoot', 'Rows Per Page').should('be.visible')
 
   cy.get('body').then(($body) => {
     const programRows = $body.find(`td:contains("${programName}")`).closest('tr');
@@ -181,15 +181,23 @@ Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiarie
 })
 
 Cypress.Commands.add(
-  'checkProgramFieldValues',
-  (programCode, programName, maxBeneficiaries, programType) => {
-
+  'checkProgramFieldValues', 
+  (
+    programCode,
+    programName,
+    maxBeneficiaries,
+    programType,
+    institution='',
+    description='',
+  ) => {
   cy.assertMuiInput('Code', programCode)
   cy.assertMuiInput('Name', programName)
   const today = getTodayFormatted()
   cy.assertMuiInput('Date from', today)
   cy.assertMuiInput('Date to', today)
   cy.assertMuiInput('Max Beneficiaries', maxBeneficiaries)
+  cy.assertMuiInput('Institution', institution)
+  cy.assertMuiInput('Description', description, 'textarea')
 })
 
 Cypress.Commands.add(
@@ -207,17 +215,43 @@ Cypress.Commands.add(
     })
 })
 
-Cypress.Commands.add('enterMuiInput', (label, value) => {
+Cypress.Commands.add('enterMuiInput', (label, value, inputTag='input') => {
   cy.contains('label', label)
     .siblings('.MuiInputBase-root')
-    .find('input')
-    .type(value);
+    .find(inputTag)
+    .first()
+    .clear({force: true})
+    .type(value, {force: true});
 })
 
-Cypress.Commands.add('assertMuiInput', (label, value) => {
+Cypress.Commands.add('assertMuiInput', (label, value, inputTag='input') => {
   cy.contains('label', label)
     .siblings('.MuiInputBase-root')
-    .find('input')
+    .find(inputTag)
     .should('be.visible')
     .and('have.value', value);
+})
+
+Cypress.Commands.add('setModuleConfig', (moduleName, configFixtureFile) => {
+    cy.deleteModuleConfig(moduleName)
+
+    cy.contains('a', 'Module configurations').click()
+
+    // Create module config using fixture config file
+    cy.contains('a', 'Add module configuration').click()
+    cy.get('input[name="module"]').type(moduleName)
+    cy.get('select[name="layer"]').select('backend')
+    cy.get('input[name="version"]').type(1)
+
+    cy.fixture(configFixtureFile).then((config) => {
+      const configString = JSON.stringify(config, null, 2);
+      cy.get('textarea[name="config"]')
+        .type(configString, {
+          parseSpecialCharSequences: false,
+          delay: 0  // Type faster
+        });
+
+      cy.get('input[value="Save"]').click()
+      cy.contains("was added successfully")
+    })
 })
