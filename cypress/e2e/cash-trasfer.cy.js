@@ -96,7 +96,7 @@ describe('Cash transfer workflows', () => {
 
   it('Creates and deletes an household program', function () {
     const programCode = 'E2EGCP'
-    const programName = 'E2E Group Cash Program'
+    const programName = 'E2E Household Cash Program'
     const maxBeneficiaries = "200"
     const programType = "GROUP"
 
@@ -112,5 +112,67 @@ describe('Cash transfer workflows', () => {
     // Check field values displayed in list view
     cy.visit('/front/benefitPlans');
     cy.checkProgramFieldValuesInListView(programCode, programName, maxBeneficiaries, programType)
+  })
+
+  it('Updates a household program', function () {
+    // Disable maker checker
+    cy.loginAdminInterface()
+    cy.setModuleConfig('social_protection', 'social-protection-config.json')
+
+    const programCode = 'E2EGCPU'
+    const programName = 'E2E Household Cash Program Updated'
+    const maxBeneficiaries = "200"
+    const programType = "GROUP"
+
+    cy.createProgram(programCode, programName, maxBeneficiaries, programType)
+
+    // Ensure the created program gets cleaned up later
+    testProgramNames.push(programName);
+
+    const updatedProgramCode = 'E2EGCP42'
+    const updatedMaxBeneficiaries = "222"
+    const updatedInstitution = "Family Support Services"
+    const updatedDescription = "A functional program"
+
+    // Go back into the list page to find the program & edit
+    cy.visit('/front/benefitPlans');
+    cy.contains('tfoot', 'Rows Per Page')
+    cy.contains('td', programName)
+      .parent('tr').within(() => {
+        // click on edit button
+        cy.get('a.MuiIconButton-root').click()
+      })
+
+    cy.assertMuiInput('Code', programCode)
+    cy.enterMuiInput('Code', updatedProgramCode)
+    cy.assertMuiInput('Code', updatedProgramCode)
+
+    cy.enterMuiInput('Max Beneficiaries', updatedMaxBeneficiaries)
+
+    cy.enterMuiInput('Institution', updatedInstitution)
+
+    cy.enterMuiInput('Description', updatedDescription, 'textarea')
+
+    cy.get('[title="Save changes"] button').click()
+
+    // Wait for update to complete
+    cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
+    cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
+
+    // Check last journal message
+    cy.get('ul.MuiList-root li').first().click()
+    cy.contains('Update programme').should('exist')
+    cy.contains('Failed to update').should('not.exist')
+
+    // Check program field values are persisted
+    cy.reload()
+    cy.checkProgramFieldValues(
+      updatedProgramCode,
+      programName,
+      updatedMaxBeneficiaries,
+      programType,
+      updatedInstitution,
+      updatedDescription,
+    )
   })
 })
