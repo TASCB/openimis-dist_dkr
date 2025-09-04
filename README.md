@@ -104,5 +104,10 @@ This can be useful for local development or verifying a staging deployment,
 for example, if the target host is localhost:3000,
 pass it into the corresponding test command with `-- --config "baseUrl=http://localhost:3000"`:
 
-- Headless: `npx cypress run --config "baseUrl=http://localhost:3000"`
-- Headed: `npx cypress open --config "baseUrl=http://localhost:3000"`
+Additionally, if you are using social protection specific language pack,
+e.g. benefit plan would be called programme, you can pass in 
+`--env useSocialProtectionLanguagePack=true`
+
+- Headless: `npx cypress run --config "baseUrl=http://localhost:3000" --env useSocialProtectionLanguagePack=true`
+- Headed: `npx cypress open --config "baseUrl=http://localhost:3000" --env useSocialProtectionLanguagePack=true`
+

@@ -1,6 +1,7 @@
+const programTerm = Cypress.env('useSocialProtectionLanguagePack') ? 'programme' : 'benefit plan';
 
 describe('Cash transfer workflows', () => {
-  const testProgramNames = []; 
+  let testProgramNames = [];
 
   beforeEach(function () {
     cy.login()
@@ -10,6 +11,7 @@ describe('Cash transfer workflows', () => {
     testProgramNames.forEach(name => {
       cy.deleteProgram(name)
     })
+    testProgramNames = []
   })
 
   it('Creates and deletes an individual program', function () {
@@ -79,7 +81,7 @@ describe('Cash transfer workflows', () => {
 
     // Check last journal message
     cy.get('ul.MuiList-root li').first().click()
-    cy.contains('Update programme').should('exist')
+    cy.contains(`Update ${programTerm}`).should('exist')
     cy.contains('Failed to update').should('not.exist')
 
     // Check program field values are persisted
@@ -161,7 +163,7 @@ describe('Cash transfer workflows', () => {
 
     // Check last journal message
     cy.get('ul.MuiList-root li').first().click()
-    cy.contains('Update programme').should('exist')
+    cy.contains(`Update ${programTerm}`).should('exist')
     cy.contains('Failed to update').should('not.exist')
 
     // Check program field values are persisted

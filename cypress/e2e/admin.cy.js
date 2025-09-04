@@ -7,7 +7,7 @@ describe('Django admin workflows', () => {
 
   it('Configures menu', function () {
     cy.deleteModuleConfig("fe-core")
-    cy.visit('/')
+    cy.visit('/front')
     cy.get('div.MuiToolbar-root').should('exist') // default top toolbar menu
 
     cy.visit('/api/admin');
@@ -30,7 +30,7 @@ describe('Django admin workflows', () => {
 
       cy.get('input[value="Save"]').click()
 
-      cy.visit('/')
+      cy.visit('/front')
       cy.get('div.MuiDrawer-root').should('exist') // left drawer menu
 
       const expectedMenuItems = [
