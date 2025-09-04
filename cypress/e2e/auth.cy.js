@@ -1,6 +1,6 @@
 describe('Unauthenticated', () => {
   it('Shows the login screen', () => {
-    cy.visit('')
+    cy.visit('/')
     cy.contains('Username')
     cy.contains('Password')
     cy.contains('button', 'Log In')

@@ -1,3 +1,5 @@
+const programTerm = Cypress.env('useSocialProtectionLanguagePack') ? 'programme' : 'benefit plan';
+
 const getTodayFormatted = () => {
   const today = new Date();
   const day = String(today.getDate()).padStart(2, '0');
@@ -28,23 +30,32 @@ Cypress.Commands.add('loginAdminInterface', () => {
 
 Cypress.Commands.add('deleteModuleConfig', (moduleName) => {
   cy.visit('/api/admin/core/moduleconfiguration/');
-  cy.get('table#result_list').then(($table) => {
-    const configLink = $table.find(`a:contains("${moduleName}")`)
 
-    // Delete any existing module config with the given name
-    if (configLink.length) {
-      cy.wrap(configLink).click()
-      cy.contains('a.deletelink', 'Delete').click()
-      cy.get('input[type="submit"][value*="Yes"]').click()
-      cy.contains(`a:contains("${moduleName}")`).should('not.exist')
-    } else {
+  cy.get('body').then(($body) => {
+    if ($body.text().includes('0 module configurations')) {
       Cypress.log({
         name: 'deleteModuleConfig',
-        message: `Module Configuration named ${moduleName} not found, nothing to delete`,
+        message: 'No module configurations found, skipping deletion.',
+      });
+    } else {
+      cy.get('table#result_list').then(($table) => {
+        const configLink = $table.find(`a:contains("${moduleName}")`);
+
+        if (configLink.length) {
+          cy.wrap(configLink).click();
+          cy.contains('a.deletelink', 'Delete').click();
+          cy.get('input[type="submit"][value*="Yes"]').click();
+          cy.contains(`a:contains("${moduleName}")`).should('not.exist');
+        } else {
+          Cypress.log({
+            name: 'deleteModuleConfig',
+            message: `Module Configuration named ${moduleName} not found, nothing to delete.`,
+          });
+        }
       });
     }
-  })
-})
+  });
+});
 
 Cypress.Commands.add('shouldHaveMenuItemsInOrder', (expectedMenuNames) => {
   cy.get('div[role="button"]')
@@ -110,7 +121,7 @@ Cypress.Commands.add('deleteProgram', (programName) => {
         cy.wrap(row).within(() => {
           // Find and click the Delete button in this row
           cy.get('button[title="Delete"]')
-            .click();
+            .click({force: true});
         });
 
         // Confirm deletion in dialog
@@ -128,8 +139,13 @@ Cypress.Commands.add('deleteProgram', (programName) => {
 
         cy.get('ul.MuiList-root li')
           .first()
-          .should('contain', `Delete programme`);
-          // .should('contain', `Delete programme ${programName}`); //TODO: switch to this after fix
+          .should('contain', `Delete ${programTerm}`);
+          // .should('contain', `Delete ${programTerm} ${programName}`); //TODO: switch to this after fix
+
+        // Close journal drawer
+        cy.get('.MuiDrawer-paperAnchorRight button')
+          .first()
+          .click();
       });
     } else {
       Cypress.log({
@@ -176,7 +192,7 @@ Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiarie
 
   // Check last journal message
   cy.get('ul.MuiList-root li').first().click()
-  cy.contains('Create programme').should('exist')
+  cy.contains(`Create ${programTerm}`).should('exist')
   cy.contains('Failed to create').should('not.exist')
 })
 

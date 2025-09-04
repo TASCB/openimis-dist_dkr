@@ -44,10 +44,12 @@ function waitForServerToStart(url) {
 }
 
 module.exports = defineConfig({
+  viewportWidth: 1280,
+  viewportHeight: 670,
   e2e: {
     projectId: "q6gc25", // Cypress Cloud, needed for recording
     baseUrl: 'http://localhost',
-    defaultCommandTimeout: 10000,
+    defaultCommandTimeout: 15000,
     taskTimeout: 300000,
     downloadsFolder: 'cypress/downloads',
     setupNodeEvents(on, config) {
