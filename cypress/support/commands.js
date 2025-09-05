@@ -1,4 +1,4 @@
-const programTerm = Cypress.env('useSocialProtectionLanguagePack') ? 'programme' : 'benefit plan';
+import { getProgramTerm } from '../support/utils';
 
 const getTodayFormatted = () => {
   const today = new Date();
@@ -139,8 +139,8 @@ Cypress.Commands.add('deleteProgram', (programName) => {
 
         cy.get('ul.MuiList-root li')
           .first()
-          .should('contain', `Delete ${programTerm}`);
-          // .should('contain', `Delete ${programTerm} ${programName}`); //TODO: switch to this after fix
+          .should('contain', `Delete ${getProgramTerm()}`);
+          // .should('contain', `Delete ${getProgramTerm()} ${programName}`); //TODO: switch to this after fix
 
         // Close journal drawer
         cy.get('.MuiDrawer-paperAnchorRight button')
@@ -192,7 +192,7 @@ Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiarie
 
   // Check last journal message
   cy.get('ul.MuiList-root li').first().click()
-  cy.contains(`Create ${programTerm}`).should('exist')
+  cy.contains(`Create ${getProgramTerm()}`).should('exist')
   cy.contains('Failed to create').should('not.exist')
 })
 

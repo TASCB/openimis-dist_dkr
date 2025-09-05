@@ -1,3 +1,5 @@
+import { getProgramTerm, capitalizeWords } from '../support/utils';
+
 const path = require('path');
 
 describe('Django admin workflows', () => {
@@ -41,11 +43,12 @@ describe('Django admin workflows', () => {
         'Tasks Management',
         'Administration',
       ]
+      const programMenuText = capitalizeWords(getProgramTerm()) + 's'
       const expectedSubMenuItems = [
         'Individuals',
         'Groups',
         'Import Data - API',
-        'Programmes',
+        programMenuText,
       ]
       cy.get('div.MuiDrawer-root').first().within(() => {
         cy.shouldHaveMenuItemsInOrder(expectedMenuItems)
@@ -57,14 +60,14 @@ describe('Django admin workflows', () => {
             cy.shouldHaveMenuItemsInOrder(expectedSubMenuItems)
 
             // Verify submenu persistence selected state
-            cy.contains('div[role="button"]', 'Programmes').click();
-            cy.contains('div.Mui-selected[role="button"]', 'Programmes');
+            cy.contains('div[role="button"]', programMenuText).click();
+            cy.contains('div.Mui-selected[role="button"]', programMenuText);
 
             cy.contains('div[role="button"]', 'Individuals').click();
             cy.contains('div.Mui-selected[role="button"]', 'Individuals');
 
             cy.visit('/front/benefitPlans')
-            cy.contains('div.Mui-selected[role="button"]', 'Programmes');
+            cy.contains('div.Mui-selected[role="button"]', programMenuText);
           })
       });
     })

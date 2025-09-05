@@ -1,4 +1,4 @@
-const programTerm = Cypress.env('useSocialProtectionLanguagePack') ? 'programme' : 'benefit plan';
+import { getProgramTerm } from '../support/utils';
 
 describe('Cash transfer workflows', () => {
   let testProgramNames = [];
@@ -81,7 +81,7 @@ describe('Cash transfer workflows', () => {
 
     // Check last journal message
     cy.get('ul.MuiList-root li').first().click()
-    cy.contains(`Update ${programTerm}`).should('exist')
+    cy.contains(`Update ${getProgramTerm()}`).should('exist')
     cy.contains('Failed to update').should('not.exist')
 
     // Check program field values are persisted
@@ -163,7 +163,7 @@ describe('Cash transfer workflows', () => {
 
     // Check last journal message
     cy.get('ul.MuiList-root li').first().click()
-    cy.contains(`Update ${programTerm}`).should('exist')
+    cy.contains(`Update ${getProgramTerm()}`).should('exist')
     cy.contains('Failed to update').should('not.exist')
 
     // Check program field values are persisted
