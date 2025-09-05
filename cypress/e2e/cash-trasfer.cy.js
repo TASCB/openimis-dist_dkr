@@ -177,4 +177,38 @@ describe('Cash transfer workflows', () => {
       updatedDescription,
     )
   })
+
+  it('Imports individuals and groups', function () {
+    cy.loginAdminInterface()
+    cy.setModuleConfig('individual', 'individual-config-minimal.json')
+
+    cy.visit('/front/groups')
+    cy.getItemCount('Group').as('initialGroupCount');
+
+    cy.visit('/front/individuals')
+    cy.getItemCount('Individual').as('initialIndividualCount');
+
+    cy.contains('li', 'UPLOAD').click()
+
+    cy.get('input[type="file"]').attachFile('individuals.csv');
+
+    cy.chooseMuiSelect('Workflow', 'Python Import Individuals')
+    cy.contains('button', 'Upload Individuals').click();
+
+    cy.contains('button', 'Upload Individuals').should('not.exist')
+
+    cy.visit('/front/individuals')
+    cy.getItemCount("Individual").then(newCount => {
+      cy.get('@initialIndividualCount').then(initial => {
+        expect(newCount - initial).to.eq(100);
+      });
+    });
+
+    cy.visit('/front/groups')
+    cy.getItemCount("Group").then(newCount => {
+      cy.get('@initialGroupCount').then(initial => {
+        expect(newCount - initial).to.eq(20);
+      });
+    });
+  })
 })

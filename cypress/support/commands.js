@@ -240,6 +240,15 @@ Cypress.Commands.add('enterMuiInput', (label, value, inputTag='input') => {
     .type(value, {force: true});
 })
 
+Cypress.Commands.add('chooseMuiSelect', (label, value) => {
+  cy.contains('label', label)
+    .siblings('.MuiInputBase-root')
+    .find('[role="button"]')
+    .click()
+
+  cy.contains('li', value).click()
+})
+
 Cypress.Commands.add('assertMuiInput', (label, value, inputTag='input') => {
   cy.contains('label', label)
     .siblings('.MuiInputBase-root')
@@ -271,3 +280,14 @@ Cypress.Commands.add('setModuleConfig', (moduleName, configFixtureFile) => {
       cy.contains("was added successfully")
     })
 })
+
+Cypress.Commands.add('getItemCount', (itemName) => {
+  const pattern = new RegExp(`\\d+ ${itemName}s? Found`);
+  return cy.contains(pattern)
+    .invoke('text')
+    .then((text) => {
+      const match = text.match(new RegExp(`(\\d+)\\s+${itemName}`));
+      return parseInt(match?.[1], 10);
+    });
+});
+
