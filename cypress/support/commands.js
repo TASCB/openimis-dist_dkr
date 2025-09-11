@@ -206,8 +206,29 @@ Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiarie
   cy.contains('Failed to create').should('not.exist')
 })
 
+Cypress.Commands.add('openProgramForEditFromList', (programName) => {
+  cy.contains('tfoot', 'Rows Per Page')
+  cy.contains('td', programName)
+    .parent('tr').within(() => {
+      // click on edit button
+      cy.get('a.MuiIconButton-root').click()
+    })
+  cy.assertMuiInput('Name', programName)
+})
+
+Cypress.Commands.add('checkProgramUpdateCompleted', (programName) => {
+  // Wait for update to complete
+  cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
+  cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
+
+  // Check last journal message
+  cy.get('ul.MuiList-root li').first().click()
+  cy.contains(`Update ${getProgramTerm()}`).should('exist')
+  cy.contains('Failed to update').should('not.exist')
+})
+
 Cypress.Commands.add(
-  'checkProgramFieldValues', 
+  'checkProgramFieldValues',
   (
     programCode,
     programName,
@@ -278,6 +299,12 @@ Cypress.Commands.add('assertMuiInput', (label, value, inputTag='input') => {
     .and('have.value', value);
 })
 
+Cypress.Commands.add('assertMuiSelectValue', (label, value) => {
+  cy.contains('label', label)
+    .siblings('.MuiInputBase-root')
+    .contains(value)
+})
+
 Cypress.Commands.add('setModuleConfig', (moduleName, configFixtureFile) => {
     cy.deleteModuleConfig(moduleName)
 
@@ -311,4 +338,3 @@ Cypress.Commands.add('getItemCount', (itemName) => {
       return parseInt(match?.[1], 10);
     });
 });
-
