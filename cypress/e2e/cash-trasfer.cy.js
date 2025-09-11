@@ -84,14 +84,8 @@ describe('Cash transfer program update workflows', () => {
       const updatedInstitution = "Social Protection Agency"
       const updatedDescription = "Foo bar baz"
 
-      // Go back into the list page to find the program & edit
       cy.visit('/front/benefitPlans');
-      cy.contains('tfoot', 'Rows Per Page')
-      cy.contains('td', programName)
-        .parent('tr').within(() => {
-          // click on edit button
-          cy.get('a.MuiIconButton-root').click()
-        })
+      cy.openProgramForEditFromList(programName)
 
       cy.assertMuiInput('Code', programCode)
       cy.enterMuiInput('Code', updatedProgramCode)
@@ -105,14 +99,7 @@ describe('Cash transfer program update workflows', () => {
 
       cy.get('[title="Save changes"] button').click()
 
-      // Wait for update to complete
-      cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
-      cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
-
-      // Check last journal message
-      cy.get('ul.MuiList-root li').first().click()
-      cy.contains(`Update ${getProgramTerm()}`).should('exist')
-      cy.contains('Failed to update').should('not.exist')
+      cy.checkProgramUpdateCompleted()
 
       // Check program field values are persisted
       cy.reload()
@@ -124,6 +111,32 @@ describe('Cash transfer program update workflows', () => {
         updatedInstitution,
         updatedDescription,
       )
+    })
+
+    it('configures default enrollment criteria for an individual program', function () {
+      cy.visit('/front/benefitPlans');
+      cy.openProgramForEditFromList(programName)
+
+      cy.contains('button', 'Beneficiaries').click()
+      cy.contains('button', 'Potential').click()
+
+      cy.contains('Potential Beneficiary Enrollment Criteria')
+      cy.contains('button', 'Add Filters').click()
+
+      cy.chooseMuiSelect('Field', 'Educated level')
+      cy.chooseMuiSelect('Confirm Filters', 'Contains')
+      cy.enterMuiInput('Value', 'prim')
+      cy.get('[title="Save changes"] button').click()
+
+      cy.checkProgramUpdateCompleted()
+      cy.reload()
+
+      cy.contains('button', 'Beneficiaries').click()
+      cy.contains('button', 'Potential').click()
+
+      cy.assertMuiSelectValue('Field', 'Educated level')
+      cy.assertMuiSelectValue('Confirm Filters', 'Contains')
+      cy.assertMuiInput('Value', 'prim')
     })
   })
 
@@ -148,14 +161,7 @@ describe('Cash transfer program update workflows', () => {
       const updatedInstitution = "Family Support Services"
       const updatedDescription = "A functional program"
 
-      // Go back into the list page to find the program & edit
-      cy.visit('/front/benefitPlans');
-      cy.contains('tfoot', 'Rows Per Page')
-      cy.contains('td', programName)
-        .parent('tr').within(() => {
-          // click on edit button
-          cy.get('a.MuiIconButton-root').click()
-        })
+      cy.openProgramForEditFromList(programName)
 
       cy.assertMuiInput('Code', programCode)
       cy.enterMuiInput('Code', updatedProgramCode)
@@ -169,14 +175,7 @@ describe('Cash transfer program update workflows', () => {
 
       cy.get('[title="Save changes"] button').click()
 
-      // Wait for update to complete
-      cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
-      cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
-
-      // Check last journal message
-      cy.get('ul.MuiList-root li').first().click()
-      cy.contains(`Update ${getProgramTerm()}`).should('exist')
-      cy.contains('Failed to update').should('not.exist')
+      cy.checkProgramUpdateCompleted()
 
       // Check program field values are persisted
       cy.reload()
@@ -188,6 +187,32 @@ describe('Cash transfer program update workflows', () => {
         updatedInstitution,
         updatedDescription,
       )
+    })
+
+    it('configures default enrollment criteria for a household program', function () {
+      cy.visit('/front/benefitPlans');
+      cy.openProgramForEditFromList(programName)
+
+      cy.contains('button', 'Beneficiaries').click()
+      cy.contains('button', 'Active').click()
+
+      cy.contains('Active Beneficiary Enrollment Criteria')
+      cy.contains('button', 'Add Filters').click()
+
+      cy.chooseMuiSelect('Field', 'Number of children')
+      cy.chooseMuiSelect('Confirm Filters', 'Greater than or equal to')
+      cy.enterMuiInput('Value', '2')
+      cy.get('[title="Save changes"] button').click()
+
+      cy.checkProgramUpdateCompleted()
+      cy.reload()
+
+      cy.contains('button', 'Beneficiaries').click()
+      cy.contains('button', 'Active').click()
+
+      cy.assertMuiSelectValue('Field', 'Number of children')
+      cy.assertMuiSelectValue('Confirm Filters', 'Greater than or equal to')
+      cy.assertMuiInput('Value', '2')
     })
   })
 })
