@@ -28,6 +28,11 @@ Cypress.Commands.add('loginAdminInterface', () => {
   })
 })
 
+Cypress.Commands.add('logoutAdminInterface', () => {
+  cy.visit('/api/admin');
+  cy.contains('button', 'Log out').click()
+})
+
 Cypress.Commands.add('deleteModuleConfig', (moduleName) => {
   cy.visit('/api/admin/core/moduleconfiguration/');
 
@@ -229,6 +234,17 @@ Cypress.Commands.add(
       cy.contains('td', maxBeneficiaries)
       cy.contains('td', new Date().toISOString().substring(0, 10))
     })
+})
+
+Cypress.Commands.add('uploadIndividualsCSV', () => {
+  cy.contains('li', 'UPLOAD').click()
+
+  cy.get('input[type="file"]').attachFile('individuals.csv');
+
+  cy.chooseMuiSelect('Workflow', 'Python Import Individuals')
+  cy.contains('button', 'Upload Individuals').click();
+
+  cy.contains('button', 'Upload Individuals').should('not.exist')
 })
 
 Cypress.Commands.add('enterMuiInput', (label, value, inputTag='input') => {
