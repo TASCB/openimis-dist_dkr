@@ -3,6 +3,13 @@ import { getProgramTerm, capitalizeWords } from '../support/utils';
 const path = require('path');
 
 describe('Django admin workflows', () => {
+  before(function () {
+    // This ensures that Admin user's core user exists
+    // because is only auto provisioned on first login to the frontend UI
+    cy.login()
+    cy.logout()
+  });
+
   beforeEach(function () {
     cy.loginAdminInterface()
   });

@@ -18,6 +18,11 @@ Cypress.Commands.add('login', () => {
   })
 })
 
+Cypress.Commands.add('logout', () => {
+  cy.visit('/front');
+  cy.get('button[title="Log out"]').click()
+})
+
 Cypress.Commands.add('loginAdminInterface', () => {
   cy.visit('/api/admin');
   cy.fixture('cred').then((cred) => {
