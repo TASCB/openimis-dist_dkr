@@ -57,9 +57,10 @@ describe('Cash transfer program creation workflows', () => {
 
 describe('Cash transfer program update workflows', () => {
   const treePlantingActivity = `E2E Tree Planting - ${getTimestamp()}`;
+  const riverCleaningActivity = `E2E River Cleaning - ${getTimestamp()}`;
   const activities = [
     treePlantingActivity,
-    `E2E River Cleaning - ${getTimestamp()}`,
+    riverCleaningActivity,
   ];
 
   before(() => {
@@ -152,7 +153,6 @@ describe('Cash transfer program update workflows', () => {
     const programName = 'E2E Household Cash Program Updated'
     const maxBeneficiaries = "200"
     const programType = "GROUP"
-    let testProjectPaths = []
 
     before(() => {
       cy.login()
@@ -160,9 +160,6 @@ describe('Cash transfer program update workflows', () => {
     })
 
     after(() => {
-      testProjectPaths.forEach(projectPath => {
-        cy.deleteProject(projectPath)
-      })
       cy.deleteProgram(programName)
     })
 
@@ -226,45 +223,17 @@ describe('Cash transfer program update workflows', () => {
       cy.assertMuiInput('Value', '2')
     })
 
-    it('Creates and deletes a project under a given program', function () {
-      cy.visit('/front/benefitPlans');
-      cy.openProgramForEditFromList(programName)
-      cy.contains('button', 'Projects').click()
-      cy.contains('button', 'Create Project').click()
-      cy.contains('h6', 'Project details')
-
+    it('Creates a project under a household program', function () {
       const projectName = `E2E Public Works Project - ${getTimestamp()}`
-      cy.enterMuiInput('Name', projectName)
-
-      cy.chooseMuiAutocomplete('Activity', treePlantingActivity)
-
       const regionName = 'R2 Tahida'
       const districtName = 'R2D2 Vida'
-      cy.chooseMuiAutocomplete('Location', regionName)
-      cy.contains('li', districtName).click()
-
       const targetBeneficiaries = "50"
-      cy.enterMuiInput('Target Beneficiaries', targetBeneficiaries)
-
       const workingDays = "20"
-      cy.enterMuiInput('Working Days', workingDays)
 
-      cy.get('[title="Save"] button').click()
-
-      // Wait for creation to complete
-      cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
-      cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
-
-      // Check last journal message
-      cy.get('ul.MuiList-root li').first().click()
-      cy.contains(`Create project ${projectName}`).should('exist')
-      cy.contains('Failed to create').should('not.exist')
-
-      // Ensure project is cleaned up after test ends
-      cy.url().then((currentUrl) => {
-        const path = new URL(currentUrl).pathname;
-        testProjectPaths.push(path)
-      });
+      cy.createProject(
+        programName, projectName, treePlantingActivity,
+        regionName, districtName, targetBeneficiaries, workingDays,
+      )
 
       cy.reload()
 
@@ -273,6 +242,114 @@ describe('Cash transfer program update workflows', () => {
       cy.assertMuiInput('Location', districtName)
       cy.assertMuiInput('Target Beneficiaries', targetBeneficiaries)
       cy.assertMuiInput('Working Days', workingDays)
+    })
+
+    describe('Given a project and a household program', function () {
+      const projectName = `E2E Existing Project - ${getTimestamp()}`
+      const regionName = 'R2 Tahida'
+      const districtName = 'R2D1 Rajo'
+      const targetBeneficiaries = "20"
+      const workingDays = "10"
+      let projectPath = null
+
+      before(() => {
+        cy.createProject(
+          programName, projectName, treePlantingActivity,
+          regionName, districtName, targetBeneficiaries, workingDays,
+        )
+        cy.url().then((currentUrl) => {
+          projectPath = new URL(currentUrl).pathname;
+        });
+      })
+
+      it('Updates a project', function () {
+        cy.visit(projectPath)
+        cy.assertMuiInput('Name', projectName)
+
+        const projectNameUpdated = `${projectName} Updated`
+        cy.enterMuiInput('Name', projectNameUpdated)
+
+        cy.chooseMuiAutocomplete('Activity', riverCleaningActivity)
+
+        const regionNameUpdated = 'R1 Region 1'
+        const districtNameUpdated = 'R1D1 District 1'
+        const municipalityName = 'R1D1M2 Jamu'
+        cy.chooseMuiAutocomplete('Location', regionNameUpdated)
+        cy.contains('li', districtNameUpdated).click()
+        cy.contains('li', municipalityName).click()
+
+        const targetBeneficiariesUpdated = "20"
+        cy.enterMuiInput('Target Beneficiaries', targetBeneficiariesUpdated)
+
+        const workingDaysUpdated = "10"
+        cy.enterMuiInput('Working Days', workingDaysUpdated)
+
+        cy.get('[title="Save"] button').click()
+
+        // Wait for update to complete
+        cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
+        cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
+
+        // Check last journal message
+        cy.get('ul.MuiList-root li').first().click()
+        cy.contains(`Update project ${projectName}`).should('exist')
+        cy.contains('Failed to update').should('not.exist')
+
+        cy.visit(projectPath)
+
+        cy.assertMuiInput('Name', projectNameUpdated)
+        cy.assertMuiInput('Activity', riverCleaningActivity)
+        cy.assertMuiInput('Location', municipalityName)
+        cy.assertMuiInput('Target Beneficiaries', targetBeneficiariesUpdated)
+        cy.assertMuiInput('Working Days', workingDaysUpdated)
+      })
+
+      it('Deletes and restores a project', function () {
+        cy.visit(projectPath)
+        cy.contains('Beneficiaries Assigned')
+        cy.contains('label', 'Name')
+          .siblings('.MuiInputBase-root')
+          .find('input')
+          .invoke('val')
+          .then((name) => {
+            cy.deleteProject(projectPath);
+            cy.reload()
+
+            cy.contains('button', 'Projects').click()
+            cy.contains('label', 'Show Deleted').click()
+            cy.contains('button', 'Search').click()
+
+            cy.contains('td', name)
+              .parent('tr').within(() => {
+                cy.get('button[title="Edit"]').click({force: true});
+              })
+
+            cy.assertMuiInputDisabled('Name', name)
+            cy.assertMuiInputDisabled('Activity')
+            cy.assertMuiInputDisabled('Location')
+            cy.assertMuiInputDisabled('Target Beneficiaries')
+            cy.assertMuiInputDisabled('Working Days')
+            cy.assertMuiInputDisabled('Status')
+            cy.assertMuiInputDisabled('Program')
+
+            cy.get('button[title="Undo Delete"]').click()
+            cy.contains('button', 'Ok').click();
+
+            // Wait for undo to complete
+            cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
+            cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
+
+            // Check last journal message
+            cy.get('ul.MuiList-root li').first().click()
+            cy.contains(`Restore project`).should('exist')
+            cy.contains('Failed to restore').should('not.exist')
+
+            cy.reload()
+
+            cy.contains('button', 'Projects').click()
+            cy.contains(name).should('exist');
+          });
+      })
     })
   })
 })

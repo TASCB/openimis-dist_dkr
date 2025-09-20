@@ -147,6 +147,44 @@ Cypress.Commands.add('deleteProject', (projectPath) => {
   cy.location('pathname').should('not.include', projectPath);
 })
 
+Cypress.Commands.add('createProject', (
+  programName,
+  projectName,
+  activityName,
+  regionName,
+  districtName,
+  targetBeneficiaries,
+  workingDays,
+) => {
+  cy.visit('/front/benefitPlans');
+  cy.openProgramForEditFromList(programName)
+  cy.contains('button', 'Projects').click()
+  cy.contains('button', 'Create Project').click()
+  cy.contains('h6', 'Project details')
+
+  cy.enterMuiInput('Name', projectName)
+
+  cy.chooseMuiAutocomplete('Activity', activityName)
+
+  cy.chooseMuiAutocomplete('Location', regionName)
+  cy.contains('li', districtName).click()
+
+  cy.enterMuiInput('Target Beneficiaries', targetBeneficiaries)
+
+  cy.enterMuiInput('Working Days', workingDays)
+
+  cy.get('[title="Save"] button').click()
+
+  // Wait for creation to complete
+  cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
+  cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
+
+  // Check last journal message
+  cy.get('ul.MuiList-root li').first().click()
+  cy.contains(`Create project ${projectName}`).should('exist')
+  cy.contains('Failed to create').should('not.exist')
+})
+
 Cypress.Commands.add('deleteProgram', (programName) => {
   cy.visit('/front/benefitPlans');
   cy.contains('tfoot', 'Rows Per Page').should('be.visible')
@@ -327,6 +365,17 @@ Cypress.Commands.add('assertMuiInput', (label, value, inputTag='input') => {
     .find(inputTag)
     .should('be.visible')
     .and('have.value', value);
+})
+
+Cypress.Commands.add('assertMuiInputDisabled', (label, value=null, inputTag='input') => {
+  const input = cy.contains('label', label)
+    .siblings('.MuiInputBase-root')
+    .find(inputTag)
+  input.should('be.disabled');
+
+  if (value) {
+    input.should('have.value', value)
+  }
 })
 
 Cypress.Commands.add('assertMuiSelectValue', (label, value) => {
