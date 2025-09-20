@@ -117,6 +117,36 @@ Cypress.Commands.add('deleteActivities', (activityNames) => {
   });
 });
 
+Cypress.Commands.add('createActivities', (activities) => {
+  cy.deleteActivities(activities)
+
+  activities.forEach(activityName => {
+    cy.contains('a', 'Activities').click()
+    cy.contains('a', 'Add Activity').click()
+    cy.get('input[name="name"]').type(activityName)
+    cy.get('input[value="Save"]').click()
+    cy.contains('td.field-name', activityName)
+  })
+})
+
+Cypress.Commands.add('deleteProject', (projectPath) => {
+  cy.visit(projectPath);
+  cy.get('button[title="Delete"]').click();
+  cy.contains('button', 'Ok').click();
+
+  // Wait for deletion to complete
+  cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
+  cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
+
+  // Check last journal message
+  cy.get('ul.MuiList-root li').first().click()
+  cy.contains(`Delete project`).should('exist')
+  cy.contains('Failed to delete').should('not.exist')
+
+  // Check redirect
+  cy.location('pathname').should('not.include', projectPath);
+})
+
 Cypress.Commands.add('deleteProgram', (programName) => {
   cy.visit('/front/benefitPlans');
   cy.contains('tfoot', 'Rows Per Page').should('be.visible')
@@ -303,6 +333,15 @@ Cypress.Commands.add('assertMuiSelectValue', (label, value) => {
   cy.contains('label', label)
     .siblings('.MuiInputBase-root')
     .contains(value)
+})
+
+Cypress.Commands.add('chooseMuiAutocomplete', (label, value) => {
+  cy.contains('label', label)
+    .siblings('.MuiInputBase-root')
+    .find('input')
+    .click()
+
+  cy.contains('li', value).click()
 })
 
 Cypress.Commands.add('setModuleConfig', (moduleName, configFixtureFile) => {
