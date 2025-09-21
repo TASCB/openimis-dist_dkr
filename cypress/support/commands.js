@@ -21,6 +21,7 @@ Cypress.Commands.add('login', () => {
 Cypress.Commands.add('logout', () => {
   cy.visit('/front');
   cy.get('button[title="Log out"]').click()
+  cy.contains('label', 'Username')
 })
 
 Cypress.Commands.add('loginAdminInterface', () => {
@@ -134,17 +135,13 @@ Cypress.Commands.add('deleteProject', (projectPath) => {
   cy.get('button[title="Delete"]').click();
   cy.contains('button', 'Ok').click();
 
-  // Wait for deletion to complete
-  cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist')
-  cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist')
+  // Check redirect
+  cy.location('pathname').should('not.include', projectPath);
 
   // Check last journal message
   cy.get('ul.MuiList-root li').first().click()
   cy.contains(`Delete project`).should('exist')
   cy.contains('Failed to delete').should('not.exist')
-
-  // Check redirect
-  cy.location('pathname').should('not.include', projectPath);
 })
 
 Cypress.Commands.add('createProject', (
