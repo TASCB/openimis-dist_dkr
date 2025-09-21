@@ -80,10 +80,15 @@ describe('Cash transfer program update workflows', () => {
     before(() => {
       cy.login()
       cy.createProgram(programCode, programName, maxBeneficiaries, programType)
+      cy.logout()
     })
 
     after(() => {
       cy.deleteProgram(programName)
+    })
+
+    beforeEach(function () {
+      cy.login()
     })
 
     it('Updates an individual program', function () {
@@ -157,10 +162,15 @@ describe('Cash transfer program update workflows', () => {
     before(() => {
       cy.login()
       cy.createProgram(programCode, programName, maxBeneficiaries, programType)
+      cy.logout()
     })
 
     after(() => {
       cy.deleteProgram(programName)
+    })
+
+    beforeEach(() => {
+      cy.login()
     })
 
     it('Updates a household program', function () {
@@ -169,6 +179,7 @@ describe('Cash transfer program update workflows', () => {
       const updatedInstitution = "Family Support Services"
       const updatedDescription = "A functional program"
 
+      cy.visit('/front/benefitPlans');
       cy.openProgramForEditFromList(programName)
 
       cy.assertMuiInput('Code', programCode)
@@ -253,6 +264,7 @@ describe('Cash transfer program update workflows', () => {
       let projectPath = null
 
       before(() => {
+        cy.login()
         cy.createProject(
           programName, projectName, treePlantingActivity,
           regionName, districtName, targetBeneficiaries, workingDays,
@@ -260,6 +272,7 @@ describe('Cash transfer program update workflows', () => {
         cy.url().then((currentUrl) => {
           projectPath = new URL(currentUrl).pathname;
         });
+        cy.logout()
       })
 
       it('Updates a project', function () {
@@ -313,7 +326,6 @@ describe('Cash transfer program update workflows', () => {
           .invoke('val')
           .then((name) => {
             cy.deleteProject(projectPath);
-            cy.reload()
 
             cy.contains('button', 'Projects').click()
             cy.contains('label', 'Show Deleted').click()
