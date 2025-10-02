@@ -164,7 +164,9 @@ Cypress.Commands.add('createProject', (
   cy.chooseMuiAutocomplete('Activity', activityName)
 
   cy.chooseMuiAutocomplete('Location', regionName)
-  cy.contains('li', districtName).click()
+  if (districtName) {
+    cy.contains('li', districtName).click()
+  }
 
   cy.enterMuiInput('Target Beneficiaries', targetBeneficiaries)
 
