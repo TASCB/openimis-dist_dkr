@@ -106,3 +106,10 @@ pass it into the corresponding test command with `-- --config "baseUrl=http://lo
 
 - Headless: `npx cypress run --config "baseUrl=http://localhost:3000"`
 - Headed: `npx cypress open --config "baseUrl=http://localhost:3000"`
+### Using Sentry for Frontend
+
+In order to use Sentry for frontend, you need to add the following environment variables to your `.env` file:
+
+- SENTRY_DSN_FE
+- You also need to place the fe_js and fe-core_js on the feature-glitchtip branch
+- make sure you added the sentry/react in the dependencies of the fe_js and build up the image
