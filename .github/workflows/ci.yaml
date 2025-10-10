@@ -45,7 +45,6 @@ jobs:
           echo 'BE_TAG=develop' >> .env
           echo 'FE_TAG=develop' >> .env
           cp .env.openSearch.example .env.openSearch
-          cp .env.database.example .env.database
 
           docker compose up -d
 
