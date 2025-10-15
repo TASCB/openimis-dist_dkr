@@ -520,6 +520,8 @@ describe('Individuals and groups/households', () => {
       });
     });
 
+    cy.wait(10000) // group creation takes time
+
     cy.visit('/front/groups')
     cy.getItemCount("Group").then(newCount => {
       cy.get('@initialGroupCount').then(initial => {

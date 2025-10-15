@@ -56,29 +56,57 @@ module.exports = defineConfig({
     downloadsFolder: 'cypress/downloads',
     setupNodeEvents(on, config) {
       on('task', {
-          checkSetup() {
-            return fs.existsSync(serverFlagPath)
-          },
-          completeSetup() {
-            const url = `${config.baseUrl}/api/graphql`
-            return waitForServerToStart(url)
-              .then(() => {
-                console.log('Server is ready!')
-                fs.writeFileSync(serverFlagPath, new Date().toString())
-                return null
-              })
-              .catch(error => {
-                console.error('Failed to start server:')
-                console.error(error.stack);
-                return reject(error);
-              })
-          },
-          removeSetupFile() {
-            if (fs.existsSync(serverFlagPath)) {
-              fs.unlinkSync(serverFlagPath)
-            }
-            return null
+        checkSetup() {
+          return fs.existsSync(serverFlagPath)
+        },
+        completeSetup() {
+          const url = `${config.baseUrl}/api/graphql`
+          return waitForServerToStart(url)
+            .then(() => {
+              console.log('Server is ready!')
+              fs.writeFileSync(serverFlagPath, new Date().toString())
+              return null
+            })
+            .catch(error => {
+              console.error('Failed to start server:')
+              console.error(error.stack);
+              return reject(error);
+            })
+        },
+        removeSetupFile() {
+          if (fs.existsSync(serverFlagPath)) {
+            fs.unlinkSync(serverFlagPath)
           }
+          return null
+        },
+        updateCSV() {
+          const fixturePath = path.join(config.fixturesFolder, 'individuals.csv');
+          const tmpPath = path.join(config.fixturesFolder, 'tmp_individuals.csv');
+          const csv = fs.readFileSync(fixturePath, 'utf8');
+
+          const lines = csv.trim().split('\n');
+          const header = lines[0].split(',');
+          const groupCodeIdx = header.indexOf('group_code');
+
+          // map old group_code → new group_code
+          const groupMap = {};
+
+          const newLines = [lines[0]]; // keep header
+          for (let i = 1; i < lines.length; i++) {
+            const row = lines[i].split(',');
+            const oldCode = row[groupCodeIdx];
+
+            if (!groupMap[oldCode]) {
+              groupMap[oldCode] = Math.random().toString(36).substring(2, 8).toUpperCase();
+            }
+
+            row[groupCodeIdx] = groupMap[oldCode];
+            newLines.push(row.join(','));
+          }
+
+          fs.writeFileSync(tmpPath, newLines.join('\n'));
+          return null;
+        }
       })
     },
   },
