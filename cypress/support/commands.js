@@ -330,14 +330,17 @@ Cypress.Commands.add(
 })
 
 Cypress.Commands.add('uploadIndividualsCSV', () => {
-  cy.contains('li', 'UPLOAD').click()
+  cy.task('updateCSV').then(() => {
+    cy.contains('li', 'UPLOAD').click()
 
-  cy.get('input[type="file"]').attachFile('individuals.csv');
+    cy.get('input[type="file"]').attachFile('tmp_individuals.csv');
 
-  cy.chooseMuiSelect('Workflow', 'Python Import Individuals')
-  cy.contains('button', 'Upload Individuals').click();
+    cy.chooseMuiSelect('Workflow', 'Python Import Individuals')
+    cy.contains('button', 'Upload Individuals').click();
 
-  cy.contains('button', 'Upload Individuals').should('not.exist')
+    cy.contains('button', 'Upload Individuals').should('not.exist')
+    cy.contains('button', 'Uploading...').should('be.disabled')
+  })
 })
 
 Cypress.Commands.add('enterMuiInput', (label, value, inputTag='input') => {
