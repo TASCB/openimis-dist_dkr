@@ -337,7 +337,7 @@ describe('Cash transfer program update workflows', () => {
       )
     })
 
-    it('configures default enrollment criteria for a household program', function () {
+    it('configures default enrollment criteria for a household program and enrolls households', function () {
       cy.visit('/front/benefitPlans');
       cy.openProgramForEditFromList(programName)
 
@@ -361,6 +361,97 @@ describe('Cash transfer program update workflows', () => {
       cy.assertMuiSelectValue('Field', 'Number of children')
       cy.assertMuiSelectValue('Confirm Filters', 'Greater than or equal to')
       cy.assertMuiInput('Value', '2')
+
+      cy.ensureSufficientHouseholds(20)
+
+      cy.visit('/front/groups')
+      cy.contains('a', 'ENROLLMENT').click()
+      cy.chooseMuiAutocomplete('BenefitPlan', programName)
+      cy.chooseMuiSelect('Status', 'ACTIVE')
+
+      cy.assertMuiSelectValue('Field', 'Number of children')
+      cy.assertMuiSelectValue('Confirm Filters', 'Greater than or equal to')
+      cy.assertMuiInput('Value', '2')
+
+      cy.contains('button', 'Preview Enrollment Process').click()
+      cy.contains('h6', 'Number Of Selected Groups')
+        .next('p')
+        .invoke('text')
+        .then((text) => {
+          const num = Number(text.trim());
+          cy.wrap(num).as('numGroupsEnrolled');
+          expect(num).to.be.greaterThan(0);
+        });
+
+      cy.contains('button', 'Confirm Enrollment Process').click()
+
+      // confirmation dialog
+      cy.contains('h2', 'Confirm Enrollment Process')
+      cy.contains('button', 'Ok').click()
+
+      // The enrollment page doesn't trigger journal update correctly
+      // so we'd have to reload the page here
+      cy.reload()
+
+      // Verify enrollment in expanded journal drawer
+      cy.get('.MuiDrawer-paperAnchorRight button')
+        .first()
+        .click();
+
+      cy.get('ul.MuiList-root li')
+        .first()
+        .should('contain', 'Enrollment has been confirmed');
+
+      // maker-checker approves enrollment
+      cy.ensurePermissiveTaskGroup()
+      cy.visit('/front/AllTasks')
+      cy.contains('tfoot', 'Rows Per Page')
+      cy.get('tr')
+        .filter((_, tr) => (
+          Cypress.$(tr).find('td:contains("import_valid_items")').length > 0 &&
+          Cypress.$(tr).find('td:contains("RECEIVED")').length > 0
+        ))
+        .first()
+        .within(() => {
+          cy.get('td')
+            .contains(new RegExp(`^${programCode}\\b`))
+            .should('exist');
+
+          cy.get('button[title="View details"]').click();
+        });
+
+      cy.contains('Import Valid Items Task')
+      cy.chooseMuiAutocomplete('Task Group', 'any');
+      cy.get('[title="Save changes"] button').click();
+
+      cy.contains('div', 'Accept All')
+        .find('button')
+        .click();
+
+      cy.contains('Beneficiary Upload Confirmation')
+      cy.contains('button', 'Continue').click()
+      cy.contains('div', 'Accept All')
+        .find('button').should('be.disabled')
+
+      cy.visit('/front/AllTasks')
+      cy.get('tr')
+        .filter((_, tr) => (
+          Cypress.$(tr).find('td:contains("import_valid_items")').length > 0 &&
+          Cypress.$(tr).find(`td:contains("${programCode}")`).length > 0
+        ))
+        .first()
+        .within(() => {
+          cy.contains('td', 'COMPLETED')
+        });
+
+      cy.visit('/front/benefitPlans');
+      cy.openProgramForEditFromList(programName)
+      cy.contains('button', 'Beneficiaries').click()
+      cy.contains('button', 'Active').click()
+
+      cy.get('@numGroupsEnrolled').then((count) => {
+        cy.contains(`${count} Group Beneficiaries`)
+      });
     })
 
     it('Creates a project under a household program', function () {

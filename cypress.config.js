@@ -79,21 +79,37 @@ module.exports = defineConfig({
           }
           return null
         },
-        updateCSV() {
+        updateCSV({ numIndividuals } = {}) {
           const fixturePath = path.join(config.fixturesFolder, 'individuals.csv');
           const tmpPath = path.join(config.fixturesFolder, 'tmp_individuals.csv');
           const csv = fs.readFileSync(fixturePath, 'utf8');
 
           const lines = csv.trim().split('\n');
-          const header = lines[0].split(',');
-          const groupCodeIdx = header.indexOf('group_code');
+          const header = lines[0];
+          const rows = lines.slice(1);
+          const headerCols = header.split(',');
+          const groupCodeIdx = headerCols.indexOf('group_code');
 
           // map old group_code → new group_code
           const groupMap = {};
 
-          const newLines = [lines[0]]; // keep header
-          for (let i = 1; i < lines.length; i++) {
-            const row = lines[i].split(',');
+          // Subset or duplicate rows
+          let adjustedRows = [];
+          if (numIndividuals && numIndividuals > 0) {
+            if (numIndividuals <= rows.length) {
+              adjustedRows = rows.slice(0, numIndividuals);
+            } else {
+              const times = Math.floor(numIndividuals / rows.length);
+              const remainder = numIndividuals % rows.length;
+              adjustedRows = Array(times).fill(rows).flat().concat(rows.slice(0, remainder));
+            }
+          } else {
+            adjustedRows = rows;
+          }
+
+          const newLines = [header];
+          for (const line of adjustedRows) {
+            const row = line.split(',');
             const oldCode = row[groupCodeIdx];
 
             if (!groupMap[oldCode]) {

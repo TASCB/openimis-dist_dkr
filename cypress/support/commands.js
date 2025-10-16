@@ -329,8 +329,8 @@ Cypress.Commands.add(
     })
 })
 
-Cypress.Commands.add('uploadIndividualsCSV', () => {
-  cy.task('updateCSV').then(() => {
+Cypress.Commands.add('uploadIndividualsCSV', (numIndividuals) => {
+  cy.task('updateCSV', { numIndividuals }).then(() => {
     cy.contains('li', 'UPLOAD').click()
 
     cy.get('input[type="file"]').attachFile('tmp_individuals.csv');
@@ -342,6 +342,62 @@ Cypress.Commands.add('uploadIndividualsCSV', () => {
     cy.contains('button', 'Uploading...').should('be.disabled')
   })
 })
+
+Cypress.Commands.add('ensureSufficientHouseholds', (expectedNumGroups) => {
+  cy.visit('/front/groups')
+  cy.getItemCount('Group').then(numGroups => {
+    const numGroupsToAdd = expectedNumGroups - numGroups;
+    if (numGroupsToAdd <= 0) {
+      Cypress.log({
+        name: 'ensureSufficientHouseholds',
+        message: `Found ${numGroups} which is more than ${expectedNumGroups}, no need to add additional`,
+      });
+      return
+    }
+
+    const numIndividualsToAdd = numGroupsToAdd * 5
+    cy.visit('/front/individuals')
+    cy.uploadIndividualsCSV(numIndividualsToAdd)
+
+    cy.wait(100*numGroupsToAdd) // group creation takes time
+
+    cy.visit('/front/groups')
+    cy.getItemCount("Group").then(newCount => {
+      expect(newCount).to.be.gte(expectedNumGroups);
+    });
+  })
+})
+
+Cypress.Commands.add('ensurePermissiveTaskGroup', () => {
+  cy.visit('/front/tasks/groups');
+
+  cy.contains('tfoot', 'Rows Per Page')
+  cy.get('table').then(($table) => {
+    const hasAnyRow = $table.find('tbody tr td:first-child')
+      .toArray()
+      .some((td) => td.innerText.trim() === 'any');
+
+    if (!hasAnyRow) {
+      cy.get('[title="Create"] button').click();
+
+      cy.enterMuiInput('Code', 'any');
+      cy.chooseMuiSelect('Policy Status', 'ANY');
+      cy.chooseMuiAutocomplete('Task Executors', 'Admin Admin');
+
+      cy.get('[title="Save changes"] button').click();
+
+      // Wait for creation to complete
+      cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist');
+
+      // Verify creation in expanded journal drawer
+      cy.get('.MuiDrawer-paperAnchorRight button').first().click();
+
+      cy.get('ul.MuiList-root li').first().should('contain', 'Create task group');
+    } else {
+      cy.log('Permissive task group named any already exists — skipping creation.');
+    }
+  });
+});
 
 Cypress.Commands.add('enterMuiInput', (label, value, inputTag='input') => {
   cy.contains('label', label)
@@ -392,7 +448,7 @@ Cypress.Commands.add('chooseMuiAutocomplete', (label, value) => {
     .find('input')
     .click()
 
-  cy.contains('li', value).click()
+  cy.contains('.MuiAutocomplete-popper li', value).click()
 })
 
 Cypress.Commands.add('setModuleConfig', (moduleName, configFixtureFile) => {
