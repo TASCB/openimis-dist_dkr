@@ -359,7 +359,7 @@ Cypress.Commands.add('ensureSufficientHouseholds', (expectedNumGroups) => {
     cy.visit('/front/individuals')
     cy.uploadIndividualsCSV(numIndividualsToAdd)
 
-    cy.wait(100*numGroupsToAdd) // group creation takes time
+    cy.wait(100*numIndividualsToAdd) // group creation takes time
 
     cy.visit('/front/groups')
     cy.getItemCount("Group").then(newCount => {
@@ -371,7 +371,7 @@ Cypress.Commands.add('ensureSufficientHouseholds', (expectedNumGroups) => {
 Cypress.Commands.add('ensurePermissiveTaskGroup', () => {
   cy.visit('/front/tasks/groups');
 
-  cy.contains('tfoot', 'Rows Per Page')
+  cy.contains('Task Groups Found')
   cy.get('table').then(($table) => {
     const hasAnyRow = $table.find('tbody tr td:first-child')
       .toArray()
@@ -399,6 +399,130 @@ Cypress.Commands.add('ensurePermissiveTaskGroup', () => {
   });
 });
 
+Cypress.Commands.add('configureDefaultEnrollmentCriteria', (
+  programName, status, criterionField, criterionFilter, criterionValue,
+) => {
+  cy.visit('/front/benefitPlans');
+  cy.openProgramForEditFromList(programName)
+
+  cy.contains('button', 'Beneficiaries').click()
+  cy.contains('button', status).click()
+
+  cy.contains(`${status} Beneficiary Enrollment Criteria`)
+  cy.contains('button', 'Add Filters').click()
+
+  cy.chooseMuiSelect('Field', criterionField)
+  cy.chooseMuiSelect('Confirm Filters', criterionFilter)
+  cy.enterMuiInput('Value', criterionValue)
+  cy.get('[title="Save changes"] button').click()
+
+  cy.checkProgramUpdateCompleted()
+  cy.reload()
+
+  cy.contains('button', 'Beneficiaries').click()
+  cy.contains('button', status).click()
+
+  cy.assertMuiSelectValue('Field', criterionField)
+  cy.assertMuiSelectValue('Confirm Filters', criterionFilter)
+  cy.assertMuiInput('Value', criterionValue)
+});
+
+Cypress.Commands.add('enrollGroupBeneficiariesIntoProgram', (
+  programName, programCode, criterionField, criterionFilter, criterionValue,
+) => {
+  cy.ensureSufficientHouseholds(20)
+
+  cy.visit('/front/groups')
+  cy.contains('a', 'ENROLLMENT').click()
+  cy.chooseMuiAutocomplete('BenefitPlan', programName)
+  cy.chooseMuiSelect('Status', 'ACTIVE')
+
+  cy.assertMuiSelectValue('Field', criterionField)
+  cy.assertMuiSelectValue('Confirm Filters', criterionFilter)
+  cy.assertMuiInput('Value', criterionValue)
+
+  cy.contains('button', 'Preview Enrollment Process').click()
+  cy.contains('h6', 'Number Of Selected Groups')
+    .next('p')
+    .invoke('text')
+    .then((text) => {
+      const num = Number(text.trim());
+      cy.wrap(num).as('numGroupsEnrolled');
+      expect(num).to.be.greaterThan(0);
+    });
+
+  cy.contains('button', 'Confirm Enrollment Process').click()
+
+  // confirmation dialog
+  cy.contains('h2', 'Confirm Enrollment Process')
+  cy.contains('button', 'Ok').click()
+
+  // The enrollment page doesn't trigger journal update correctly
+  // so we'd have to reload the page here
+  cy.reload()
+
+  // Verify enrollment in expanded journal drawer
+  cy.get('.MuiDrawer-paperAnchorRight button')
+    .first()
+    .click();
+
+  cy.get('ul.MuiList-root li')
+    .first()
+    .should('contain', 'Enrollment has been confirmed');
+
+  // maker-checker approves enrollment
+  cy.ensurePermissiveTaskGroup()
+  cy.visit('/front/AllTasks')
+  cy.contains('tfoot', 'Rows Per Page')
+  cy.get('tr')
+    .filter((_, tr) => (
+      Cypress.$(tr).find('td:contains("import_valid_items")').length > 0 &&
+      Cypress.$(tr).find('td:contains("RECEIVED")').length > 0
+    ))
+    .first()
+    .within(() => {
+      cy.get('td')
+        .contains(new RegExp(`^${programCode}\\b`))
+        .should('exist');
+
+      cy.get('button[title="View details"]').click();
+    });
+
+  cy.contains('Import Valid Items Task')
+  cy.chooseMuiAutocomplete('Task Group', 'any');
+  cy.get('[title="Save changes"] button').click();
+
+  cy.contains('div', 'Accept All')
+    .find('button')
+    .click();
+
+  cy.contains('Beneficiary Upload Confirmation')
+  cy.contains('button', 'Continue').click()
+  cy.contains('div', 'Accept All')
+    .find('button').should('be.disabled')
+
+  cy.visit('/front/AllTasks')
+  cy.get('tr')
+    .filter((_, tr) => (
+      Cypress.$(tr).find('td:contains("import_valid_items")').length > 0 &&
+      Cypress.$(tr).find(`td:contains("${programCode}")`).length > 0
+    ))
+    .first()
+    .within(() => {
+      cy.contains('td', 'COMPLETED')
+    });
+
+  cy.visit('/front/benefitPlans');
+  cy.openProgramForEditFromList(programName)
+  cy.contains('button', 'Beneficiaries').click()
+  cy.contains('button', 'Active').click()
+
+  cy.get('@numGroupsEnrolled').then((count) => {
+    cy.contains(`${count} Group Beneficiaries`)
+  });
+})
+
+
 Cypress.Commands.add('enterMuiInput', (label, value, inputTag='input') => {
   cy.contains('label', label)
     .siblings('.MuiInputBase-root')
@@ -414,7 +538,8 @@ Cypress.Commands.add('chooseMuiSelect', (label, value) => {
     .find('[role="button"]')
     .click()
 
-  cy.contains('li', value).click()
+  cy.contains('[role="listbox"] li', value).as('option')
+  cy.get('@option').click()
 })
 
 Cypress.Commands.add('assertMuiInput', (label, value, inputTag='input') => {
@@ -448,7 +573,7 @@ Cypress.Commands.add('chooseMuiAutocomplete', (label, value) => {
     .find('input')
     .click()
 
-  cy.contains('.MuiAutocomplete-popper li', value).click()
+  cy.contains('[role="menu"] li, [role="presentation"] li', value).click();
 })
 
 Cypress.Commands.add('setModuleConfig', (moduleName, configFixtureFile) => {

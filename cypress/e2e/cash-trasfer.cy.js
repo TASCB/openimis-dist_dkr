@@ -67,6 +67,7 @@ describe('Cash transfer program update workflows', () => {
     // Disable maker checker
     cy.loginAdminInterface()
     cy.setModuleConfig('social_protection', 'social-protection-config.json')
+    cy.setModuleConfig('individual', 'individual-config-minimal.json')
     cy.createActivities(activities)
     cy.logoutAdminInterface()
   })
@@ -127,29 +128,17 @@ describe('Cash transfer program update workflows', () => {
     })
 
     it('configures default enrollment criteria for an individual program', function () {
-      cy.visit('/front/benefitPlans');
-      cy.openProgramForEditFromList(programName)
+      const criterionField = 'Educated level'
+      const criterionFilter = 'Contains'
+      const criterionValue = 'prim'
 
-      cy.contains('button', 'Beneficiaries').click()
-      cy.contains('button', 'Potential').click()
-
-      cy.contains('Potential Beneficiary Enrollment Criteria')
-      cy.contains('button', 'Add Filters').click()
-
-      cy.chooseMuiSelect('Field', 'Educated level')
-      cy.chooseMuiSelect('Confirm Filters', 'Contains')
-      cy.enterMuiInput('Value', 'prim')
-      cy.get('[title="Save changes"] button').click()
-
-      cy.checkProgramUpdateCompleted()
-      cy.reload()
-
-      cy.contains('button', 'Beneficiaries').click()
-      cy.contains('button', 'Potential').click()
-
-      cy.assertMuiSelectValue('Field', 'Educated level')
-      cy.assertMuiSelectValue('Confirm Filters', 'Contains')
-      cy.assertMuiInput('Value', 'prim')
+      cy.configureDefaultEnrollmentCriteria(
+        programName,
+        'Potential',
+        criterionField,
+        criterionFilter,
+        criterionValue,
+      )
     })
 
     it('Creates a project under an individual program', function () {
@@ -283,7 +272,7 @@ describe('Cash transfer program update workflows', () => {
   })
 
   describe('Household program', () => {
-    const programCode = 'E2EGCPU'
+    let programCode = 'E2EGCPU'
     const programName = 'E2E Household Cash Program Updated'
     const maxBeneficiaries = "200"
     const programType = "GROUP"
@@ -335,123 +324,31 @@ describe('Cash transfer program update workflows', () => {
         updatedInstitution,
         updatedDescription,
       )
+
+      // Update in case other test needs the programCode
+      programCode = updatedProgramCode
     })
 
     it('configures default enrollment criteria for a household program and enrolls households', function () {
-      cy.visit('/front/benefitPlans');
-      cy.openProgramForEditFromList(programName)
+      const criterionField = 'Number of children'
+      const criterionFilter = 'Greater than or equal to'
+      const criterionValue = '2'
 
-      cy.contains('button', 'Beneficiaries').click()
-      cy.contains('button', 'Active').click()
+      cy.configureDefaultEnrollmentCriteria(
+        programName,
+        'Active',
+        criterionField,
+        criterionFilter,
+        criterionValue,
+      )
 
-      cy.contains('Active Beneficiary Enrollment Criteria')
-      cy.contains('button', 'Add Filters').click()
-
-      cy.chooseMuiSelect('Field', 'Number of children')
-      cy.chooseMuiSelect('Confirm Filters', 'Greater than or equal to')
-      cy.enterMuiInput('Value', '2')
-      cy.get('[title="Save changes"] button').click()
-
-      cy.checkProgramUpdateCompleted()
-      cy.reload()
-
-      cy.contains('button', 'Beneficiaries').click()
-      cy.contains('button', 'Active').click()
-
-      cy.assertMuiSelectValue('Field', 'Number of children')
-      cy.assertMuiSelectValue('Confirm Filters', 'Greater than or equal to')
-      cy.assertMuiInput('Value', '2')
-
-      cy.ensureSufficientHouseholds(20)
-
-      cy.visit('/front/groups')
-      cy.contains('a', 'ENROLLMENT').click()
-      cy.chooseMuiAutocomplete('BenefitPlan', programName)
-      cy.chooseMuiSelect('Status', 'ACTIVE')
-
-      cy.assertMuiSelectValue('Field', 'Number of children')
-      cy.assertMuiSelectValue('Confirm Filters', 'Greater than or equal to')
-      cy.assertMuiInput('Value', '2')
-
-      cy.contains('button', 'Preview Enrollment Process').click()
-      cy.contains('h6', 'Number Of Selected Groups')
-        .next('p')
-        .invoke('text')
-        .then((text) => {
-          const num = Number(text.trim());
-          cy.wrap(num).as('numGroupsEnrolled');
-          expect(num).to.be.greaterThan(0);
-        });
-
-      cy.contains('button', 'Confirm Enrollment Process').click()
-
-      // confirmation dialog
-      cy.contains('h2', 'Confirm Enrollment Process')
-      cy.contains('button', 'Ok').click()
-
-      // The enrollment page doesn't trigger journal update correctly
-      // so we'd have to reload the page here
-      cy.reload()
-
-      // Verify enrollment in expanded journal drawer
-      cy.get('.MuiDrawer-paperAnchorRight button')
-        .first()
-        .click();
-
-      cy.get('ul.MuiList-root li')
-        .first()
-        .should('contain', 'Enrollment has been confirmed');
-
-      // maker-checker approves enrollment
-      cy.ensurePermissiveTaskGroup()
-      cy.visit('/front/AllTasks')
-      cy.contains('tfoot', 'Rows Per Page')
-      cy.get('tr')
-        .filter((_, tr) => (
-          Cypress.$(tr).find('td:contains("import_valid_items")').length > 0 &&
-          Cypress.$(tr).find('td:contains("RECEIVED")').length > 0
-        ))
-        .first()
-        .within(() => {
-          cy.get('td')
-            .contains(new RegExp(`^${programCode}\\b`))
-            .should('exist');
-
-          cy.get('button[title="View details"]').click();
-        });
-
-      cy.contains('Import Valid Items Task')
-      cy.chooseMuiAutocomplete('Task Group', 'any');
-      cy.get('[title="Save changes"] button').click();
-
-      cy.contains('div', 'Accept All')
-        .find('button')
-        .click();
-
-      cy.contains('Beneficiary Upload Confirmation')
-      cy.contains('button', 'Continue').click()
-      cy.contains('div', 'Accept All')
-        .find('button').should('be.disabled')
-
-      cy.visit('/front/AllTasks')
-      cy.get('tr')
-        .filter((_, tr) => (
-          Cypress.$(tr).find('td:contains("import_valid_items")').length > 0 &&
-          Cypress.$(tr).find(`td:contains("${programCode}")`).length > 0
-        ))
-        .first()
-        .within(() => {
-          cy.contains('td', 'COMPLETED')
-        });
-
-      cy.visit('/front/benefitPlans');
-      cy.openProgramForEditFromList(programName)
-      cy.contains('button', 'Beneficiaries').click()
-      cy.contains('button', 'Active').click()
-
-      cy.get('@numGroupsEnrolled').then((count) => {
-        cy.contains(`${count} Group Beneficiaries`)
-      });
+      cy.enrollGroupBeneficiariesIntoProgram(
+        programName,
+        programCode,
+        criterionField,
+        criterionFilter,
+        criterionValue,
+      )
     })
 
     it('Creates a project under a household program', function () {
@@ -477,8 +374,7 @@ describe('Cash transfer program update workflows', () => {
 
     describe('Given a project and a household program', function () {
       const projectName = `E2E Existing Group Project - ${getTimestamp()}`
-      const regionName = 'R2 Tahida'
-      const districtName = 'R2D1 Rajo'
+      const regionName = 'R1 Region 1'
       const targetBeneficiaries = "20"
       const workingDays = "10"
       let projectPath = null
@@ -487,12 +383,124 @@ describe('Cash transfer program update workflows', () => {
         cy.login()
         cy.createProject(
           programName, projectName, treePlantingActivity,
-          regionName, districtName, targetBeneficiaries, workingDays,
+          regionName, null, targetBeneficiaries, workingDays,
         )
         cy.url().then((currentUrl) => {
           projectPath = new URL(currentUrl).pathname;
         });
         cy.logout()
+      })
+
+      it('Enrolls active households into a project', function () {
+        const criterionField = 'Number of children'
+        const criterionFilter = 'Less than'
+        const criterionValue = '6'
+
+        cy.configureDefaultEnrollmentCriteria(
+          programName,
+          'Active',
+          criterionField,
+          criterionFilter,
+          criterionValue,
+        )
+
+        cy.enrollGroupBeneficiariesIntoProgram(
+          programName,
+          programCode,
+          criterionField,
+          criterionFilter,
+          criterionValue,
+        )
+
+        cy.contains('tfoot', 'Rows Per Page').should('be.visible')
+        cy.chooseMuiSelect('Region', regionName)
+        cy.contains('button', 'Search').click()
+        cy.contains('Loading...')
+        cy.contains('tfoot', 'Rows Per Page').should('be.visible')
+        cy.get('table').within(() => {
+          cy.get('th').then(($ths) => {
+            const districtIndex = [...$ths].findIndex(
+              (th) => th.innerText.trim() === 'District'
+            );
+            cy.get(`tbody tr:first td:nth-child(${districtIndex + 1})`)
+              .invoke('text')
+              .then((districtValue) => {
+                cy.wrap(districtValue.trim()).as('activeDistrict');
+              });
+          });
+        });
+
+        cy.visit(projectPath)
+        cy.contains('h6', '0 Beneficiaries Assigned')
+        cy.contains('button', 'Assign Beneficiaries').click()
+        cy.get('[role="progressbar"]').should('exist')
+        cy.get('[role="progressbar"]').should('not.exist')
+
+        cy.contains('h2', 'Assign Active Beneficiaries')
+        cy.contains('h6', '0 active beneficiaries selected')
+        cy.get('[role="dialog"] [title="Previous Page"]')
+          .next('span')
+          .invoke('text')
+          .then((text) => {
+            // extract 304 from text e.g. 1-10 of 304
+            const match = text.match(/of\s+(\d+)/);
+            cy.wrap(Number(match[1])).as('numCandidates');
+          });
+
+        // filter beneficiaries by district
+        cy.get('@activeDistrict').then((district) => {
+          cy.get('[role="dialog"] input[aria-label="filter data by District"]')
+            .clear()
+            .type(district)
+          cy.get('[role="progressbar"]').should('exist')
+          cy.get('[role="progressbar"]').should('not.exist')
+        });
+
+        cy.get('@numCandidates').then((prevTotal) => {
+          cy.get('[role="dialog"] [title="Previous Page"]')
+            .next('span')
+            .invoke('text')
+            .then((text) => {
+              const match = text.match(/of\s+(\d+)/);
+              const total = Number(match[1]);
+              expect(prevTotal - total).to.gt(0);
+            });
+        });
+
+        // assign all matching beneficiaries from the first page
+        cy.get('th input[type="checkbox"]').check()
+        cy.contains('h6', '0 active beneficiaries selected').should('not.exist')
+        cy.get('[role="dialog"] h6')
+          .invoke('text')
+          .then((text) => {
+            // 1 active beneficiaries selected
+            const match = text.match(/(\d+) active beneficiaries selected/);
+            cy.wrap(match[1]).as('assignedProjectBeneficiaries');
+          });
+
+        cy.contains('button', 'Save').click()
+        cy.get('[role="progressbar"]').should('exist')
+        cy.get('[role="progressbar"]').should('not.exist')
+
+        cy.get('@assignedProjectBeneficiaries').then((expectedNumAssigned) => {
+          cy.contains('h6', `${expectedNumAssigned} Beneficiaries Assigned`)
+        })
+
+        // Check that all assigned beneficiaries share the same district
+        cy.get('table').first().within(() => {
+          cy.get('th').then(($ths) => {
+            const districtIndex = [...$ths].findIndex(
+              (th) => th.innerText.trim().includes('District')
+            );
+            cy.get('@activeDistrict').then((activeDistrict) => {
+              cy.get(`tbody tr td:nth-child(${districtIndex + 1})`)
+                .each(($td, i) => {
+                  // skip the filter row
+                  if (i>0) expect($td.text().trim()).to.eq(activeDistrict);
+                });
+            });
+          });
+        });
       })
 
       it('Updates a project', function () {
