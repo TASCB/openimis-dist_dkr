@@ -127,13 +127,22 @@ describe('Cash transfer program update workflows', () => {
       )
     })
 
-    it('configures default enrollment criteria for an individual program', function () {
+    it('configures default enrollment criteria for an individual program and enrolls individuals', function () {
       const criterionField = 'Educated level'
       const criterionFilter = 'Contains'
       const criterionValue = 'prim'
 
       cy.configureDefaultEnrollmentCriteria(
         programName,
+        'Potential',
+        criterionField,
+        criterionFilter,
+        criterionValue,
+      )
+
+      cy.enrollIndividualBeneficiariesIntoProgram(
+        programName,
+        programCode,
         'Potential',
         criterionField,
         criterionFilter,
@@ -345,6 +354,7 @@ describe('Cash transfer program update workflows', () => {
       cy.enrollGroupBeneficiariesIntoProgram(
         programName,
         programCode,
+        'Active',
         criterionField,
         criterionFilter,
         criterionValue,
@@ -407,6 +417,7 @@ describe('Cash transfer program update workflows', () => {
         cy.enrollGroupBeneficiariesIntoProgram(
           programName,
           programCode,
+          'Active',
           criterionField,
           criterionFilter,
           criterionValue,
