@@ -343,6 +343,30 @@ Cypress.Commands.add('uploadIndividualsCSV', (numIndividuals) => {
   })
 })
 
+Cypress.Commands.add('ensureSufficientIndividuals', (expectedNumIndividuals) => {
+  cy.visit('/front/individuals')
+  cy.getItemCount('Individual').then(count => {
+    const numToAdd = expectedNumIndividuals - count;
+    if (numToAdd <= 0) {
+      Cypress.log({
+        name: 'ensureSufficientIndividuals',
+        message: `Found ${count} which is more than ${expectedNumIndividuals}, no need to add additional`,
+      });
+      return
+    }
+
+    cy.visit('/front/individuals')
+    cy.uploadIndividualsCSV(numToAdd)
+
+    cy.wait(100*numToAdd) // group creation takes time
+
+    cy.visit('/front/individuals')
+    cy.getItemCount("Individual").then(newCount => {
+      expect(newCount).to.be.gte(expectedNumIndividuals);
+    });
+  })
+})
+
 Cypress.Commands.add('ensureSufficientHouseholds', (expectedNumGroups) => {
   cy.visit('/front/groups')
   cy.getItemCount('Group').then(numGroups => {
@@ -427,27 +451,30 @@ Cypress.Commands.add('configureDefaultEnrollmentCriteria', (
   cy.assertMuiInput('Value', criterionValue)
 });
 
-Cypress.Commands.add('enrollGroupBeneficiariesIntoProgram', (
-  programName, programCode, criterionField, criterionFilter, criterionValue,
+Cypress.Commands.add('enrollBeneficiariesIntoProgram', (
+  programName,
+  programCode,
+  status, // Active, Potential etc.
+  criterionField,
+  criterionFilter,
+  criterionValue,
+  entityName,
 ) => {
-  cy.ensureSufficientHouseholds(20)
-
-  cy.visit('/front/groups')
-  cy.contains('a', 'ENROLLMENT').click()
   cy.chooseMuiAutocomplete('BenefitPlan', programName)
-  cy.chooseMuiSelect('Status', 'ACTIVE')
+  cy.chooseMuiSelect('Status', status.toUpperCase())
 
   cy.assertMuiSelectValue('Field', criterionField)
   cy.assertMuiSelectValue('Confirm Filters', criterionFilter)
   cy.assertMuiInput('Value', criterionValue)
 
   cy.contains('button', 'Preview Enrollment Process').click()
-  cy.contains('h6', 'Number Of Selected Groups')
+
+  cy.contains('h6', `Number Of Selected ${entityName}`)
     .next('p')
     .invoke('text')
     .then((text) => {
       const num = Number(text.trim());
-      cy.wrap(num).as('numGroupsEnrolled');
+      cy.wrap(num).as('numEnrolled');
       expect(num).to.be.greaterThan(0);
     });
 
@@ -515,11 +542,53 @@ Cypress.Commands.add('enrollGroupBeneficiariesIntoProgram', (
   cy.visit('/front/benefitPlans');
   cy.openProgramForEditFromList(programName)
   cy.contains('button', 'Beneficiaries').click()
-  cy.contains('button', 'Active').click()
+  cy.contains('button', status).click()
 
-  cy.get('@numGroupsEnrolled').then((count) => {
-    cy.contains(`${count} Group Beneficiaries`)
+  cy.get('@numEnrolled').then((count) => {
+    if (entityName === 'Groups') {
+      cy.contains(`${count} Group Beneficiaries`)
+    } else {
+      cy.contains(`${count} Beneficiaries`)
+    }
   });
+})
+
+Cypress.Commands.add('enrollIndividualBeneficiariesIntoProgram', (
+  programName,
+  programCode,
+  status,
+  criterionField,
+  criterionFilter,
+  criterionValue,
+) => {
+  cy.ensureSufficientIndividuals(100)
+
+  cy.visit('/front/individuals')
+  cy.contains('a', 'ENROLLMENT').click()
+
+  cy.enrollBeneficiariesIntoProgram(
+    programName, programCode, status,
+    criterionField, criterionFilter, criterionValue, 'Individuals'
+  )
+})
+
+Cypress.Commands.add('enrollGroupBeneficiariesIntoProgram', (
+  programName,
+  programCode,
+  status,
+  criterionField,
+  criterionFilter,
+  criterionValue,
+) => {
+  cy.ensureSufficientHouseholds(20)
+
+  cy.visit('/front/groups')
+  cy.contains('a', 'ENROLLMENT').click()
+
+  cy.enrollBeneficiariesIntoProgram(
+    programName, programCode, status,
+    criterionField, criterionFilter, criterionValue, 'Groups'
+  )
 })
 
 
