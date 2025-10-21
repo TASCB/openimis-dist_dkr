@@ -437,7 +437,12 @@ Cypress.Commands.add('configureDefaultEnrollmentCriteria', (
 
   cy.chooseMuiSelect('Field', criterionField)
   cy.chooseMuiSelect('Confirm Filters', criterionFilter)
-  cy.enterMuiInput('Value', criterionValue)
+
+  const isValueSelect = /^(True|False)$/.test(criterionValue);
+  isValueSelect
+    ? cy.chooseMuiSelect('Value', criterionValue)
+    : cy.enterMuiInput('Value', criterionValue);
+
   cy.get('[title="Save changes"] button').click()
 
   cy.checkProgramUpdateCompleted()
@@ -446,9 +451,11 @@ Cypress.Commands.add('configureDefaultEnrollmentCriteria', (
   cy.contains('button', 'Beneficiaries').click()
   cy.contains('button', status).click()
 
-  cy.assertMuiSelectValue('Field', criterionField)
-  cy.assertMuiSelectValue('Confirm Filters', criterionFilter)
-  cy.assertMuiInput('Value', criterionValue)
+  cy.assertMuiSelectValue('Field', criterionField);
+  cy.assertMuiSelectValue('Confirm Filters', criterionFilter);
+  isValueSelect
+    ? cy.assertMuiSelectValue('Value', criterionValue)
+    : cy.assertMuiInput('Value', criterionValue);
 });
 
 Cypress.Commands.add('enrollBeneficiariesIntoProgram', (
@@ -463,9 +470,11 @@ Cypress.Commands.add('enrollBeneficiariesIntoProgram', (
   cy.chooseMuiAutocomplete('BenefitPlan', programName)
   cy.chooseMuiSelect('Status', status.toUpperCase())
 
-  cy.assertMuiSelectValue('Field', criterionField)
-  cy.assertMuiSelectValue('Confirm Filters', criterionFilter)
-  cy.assertMuiInput('Value', criterionValue)
+  cy.assertMuiSelectValue('Field', criterionField);
+  cy.assertMuiSelectValue('Confirm Filters', criterionFilter);
+  /^(True|False)$/.test(criterionValue)
+    ? cy.assertMuiSelectValue('Value', criterionValue)
+    : cy.assertMuiInput('Value', criterionValue);
 
   cy.contains('button', 'Preview Enrollment Process').click()
 
