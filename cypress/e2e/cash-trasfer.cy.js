@@ -172,8 +172,8 @@ describe('Cash transfer program update workflows', () => {
 
     describe('Given a project and an individual program', function () {
       const projectName = `E2E Existing Individual Project - ${getTimestamp()}`
-      const regionName = 'R2 Tahida'
-      const districtName = 'R2D1 Rajo'
+      const regionName = 'R1 Region 1'
+      const districtName = 'R1D2 Jambero'
       const targetBeneficiaries = "20"
       const workingDays = "10"
       let projectPath = null
@@ -188,6 +188,114 @@ describe('Cash transfer program update workflows', () => {
           projectPath = new URL(currentUrl).pathname;
         });
         cy.logout()
+      })
+
+      it('Enrolls active individuals into a project', function () {
+        const criterionField = 'Able bodied'
+        const criterionFilter = 'Exact'
+        const criterionValue = 'False'
+
+        cy.configureDefaultEnrollmentCriteria(
+          programName,
+          'Active',
+          criterionField,
+          criterionFilter,
+          criterionValue,
+        )
+
+        cy.enrollIndividualBeneficiariesIntoProgram(
+          programName,
+          programCode,
+          'Active',
+          criterionField,
+          criterionFilter,
+          criterionValue,
+        )
+
+        cy.visit(projectPath)
+        cy.contains('h6', '0 Beneficiaries Assigned')
+        cy.contains('button', 'Assign Beneficiaries').click()
+        cy.get('[role="progressbar"]').should('exist')
+        cy.get('[role="progressbar"]').should('not.exist')
+
+        cy.contains('h2', 'Assign Active Beneficiaries')
+        cy.contains('h6', '0 active beneficiaries selected')
+        cy.get('[role="dialog"] [title="Previous Page"]')
+          .next('span')
+          .invoke('text')
+          .then((text) => {
+            // extract 304 from text e.g. 1-10 of 304
+            const match = text.match(/of\s+(\d+)/);
+            cy.wrap(Number(match[1])).as('numCandidates');
+          });
+
+        // filter beneficiaries by number of children
+        cy.contains('[role="dialog"] button', '=').trigger('mouseover');
+        cy.contains('li', '<').click();
+        cy.get('[role="dialog"] input[type="number"]').clear().type('5');
+
+        cy.get('[role="progressbar"]').should('exist')
+        cy.get('[role="progressbar"]').should('not.exist')
+
+        cy.get('@numCandidates').then((prevTotal) => {
+          cy.get('[role="dialog"] [title="Previous Page"]')
+            .next('span')
+            .invoke('text')
+            .then((text) => {
+              const match = text.match(/of\s+(\d+)/);
+              const total = Number(match[1]);
+              expect(prevTotal - total).to.gt(0);
+            });
+        });
+
+        // assign all matching beneficiaries from the first page
+        cy.get('th input[type="checkbox"]').check()
+        cy.contains('h6', '0 active beneficiaries selected').should('not.exist')
+        cy.get('[role="dialog"] h6')
+          .invoke('text')
+          .then((text) => {
+            // 1 active beneficiaries selected
+            const match = text.match(/(\d+) active beneficiaries selected/);
+            cy.wrap(match[1]).as('assignedProjectBeneficiaries');
+          });
+
+        cy.contains('button', 'Save').click()
+        cy.get('[role="progressbar"]').should('exist')
+        cy.get('[role="progressbar"]').should('not.exist')
+
+        cy.get('@assignedProjectBeneficiaries').then((expectedNumAssigned) => {
+          cy.contains('h6', `${expectedNumAssigned} Beneficiaries Assigned`)
+        })
+
+        // Check that all assigned beneficiaries share the project's district
+        cy.get('table').first().within(() => {
+          cy.get('th').then(($ths) => {
+            const districtIndex = [...$ths].findIndex(
+              (th) => th.innerText.trim().includes('District')
+            );
+            cy.get(`tbody tr td:nth-child(${districtIndex + 1})`)
+              .each(($td, i) => {
+                // skip the filter row
+                if (i>0) expect($td.text().trim()).to.eq('Jambero');
+              });
+          });
+        });
+
+        // Assigned beneficiaries can be filtered
+        cy.get('td input[aria-label="filter data by Educated Level"]')
+          .clear()
+          .type('Ter')
+        cy.wait(500) // give the filter results to settle down
+        cy.get('@assignedProjectBeneficiaries').then((assignedProjectBeneficiaries) => {
+          cy.get('[title="Previous Page"]')
+            .next('span')
+            .invoke('text')
+            .then((text) => {
+              const match = text.match(/of\s+(\d+)/);
+              const filteredTotal = Number(match[1]);
+              expect(assignedProjectBeneficiaries - filteredTotal).to.gt(0);
+            });
+        });
       })
 
       it('Updates a project', function () {
