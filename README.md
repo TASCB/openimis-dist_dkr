@@ -110,4 +110,4 @@ pass it into the corresponding test command with `-- --config "baseUrl=http://lo
 ### Using Sentry for Frontend
 
 In order to use Sentry for frontend, you need to add the following environment variables to your `.env` file:
-- SENTRY_DSN_FE
+- REACT_APP_SENTRY_DSN
