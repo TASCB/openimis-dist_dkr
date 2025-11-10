@@ -48,6 +48,20 @@ services:
       - ./data/certbot/www:/var/www/certbot
       # comment the following line if you are using your own gateway
       - ./conf/nginx:/conf/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      # Optional: Redirect HTTP to HTTPS
+      - "traefik.http.routers.frontend-http.entrypoints=web"
+      - "traefik.http.routers.frontend-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.frontend-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
   migrations:
     <<: *default-api
     command: init
