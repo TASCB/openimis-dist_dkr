@@ -48,7 +48,6 @@ jobs:
           echo 'HOSTS=localhost' >> .env
           cp .env.cache.example .env.cache
           cp .env.openSearch.example .env.openSearch
-          cp .env.database.example .env.database
 
           docker compose up -d
 
