@@ -18,7 +18,7 @@ echo "initialisation already done"
 else
 echo "initialisation"
 
-docker compose  up -d db
+docker compose up -d db
 # #set -a # automatically export all variables
 # source .env
 # source .env.lightning

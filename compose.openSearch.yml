@@ -1,24 +1,26 @@
 services:
-
   opensearch:
     image: opensearchproject/opensearch:latest
     env_file:
-      - ".env.openSearch"
+      - '.env.openSearch'
     environment:
-      - "discovery.type=${DISCOVERY_TYPE:-single-node}"
-      - "cluster.name=${CLUSTER_NAME:-my_opensearch_local}"
-      - "http.port=${OPEN_SEARCH_HTTP_PORT:-9200}"
-      - "plugins.security.ssl.http.enabled=${SLL_HTTP_ENABLED:-false}"
-      - "plugins.security.disabled=true"
-      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}"
+      - 'discovery.type=${DISCOVERY_TYPE:-single-node}'
+      - 'cluster.name=${CLUSTER_NAME:-my_opensearch_local}'
+      - 'http.port=${OPEN_SEARCH_HTTP_PORT:-9200}'
+      - 'plugins.security.ssl.http.enabled=${SLL_HTTP_ENABLED:-false}'
+      - 'plugins.security.disabled=true'
+      - 'OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}'
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test:
+        ['CMD-SHELL', 'curl -f http://localhost:9200/_cluster/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    ports:
+      - '${OPEN_SEARCH_HTTP_PORT:-9200}:9200'
     volumes:
-      - "opensearch-data1:/usr/share/opensearch/data"
+      - 'opensearch-data1:/usr/share/opensearch/data'
     networks:
       openimis-net:
 
@@ -26,17 +28,18 @@ services:
     image: opensearchproject/opensearch-dashboards:2.9.0
     environment:
       - OPENSEARCH_HOSTS=${OPENSEARCH_HOSTS:-http://opensearch:9200}
-      - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
+      - 'DISABLE_SECURITY_DASHBOARDS_PLUGIN=true'
       - SERVER_BASEPATH=/opensearch
       - SERVER_REWRITEBASEPATH=true
+    ports:
+      - '${OPENSEARCH_DASHBOARDS_PORT:-5410}:5410'
     volumes:
-      - "./conf/opensearch/opensearch.yml:/usr/share/opensearch-dashboards/config/opensearch.yml"
+      - './conf/opensearch/opensearch.yml:/usr/share/opensearch-dashboards/config/opensearch.yml'
     networks:
       openimis-net:
 
 volumes:
   opensearch-data1:
-
 # networks:
 #   openimis-net:
 #     name: "${PROJECT_NAME:-openimis}-net"
