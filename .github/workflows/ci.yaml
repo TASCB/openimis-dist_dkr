@@ -46,7 +46,6 @@ jobs:
           echo 'FE_TAG=develop' >> .env
           echo 'DOMAIN=localhost' >> .env
           echo 'HOSTS=localhost' >> .env
-          cp .env.cache.example .env.cache
           cp .env.openSearch.example .env.openSearch
 
           docker compose up -d
