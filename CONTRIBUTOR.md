@@ -1,12 +1,13 @@
-<center>
-<img src="https://openimis.org/themes/custom/ffw/logo.svg" width="200px" alt="openIMIS logo" />
-</center>
+# CONTRIBUTING
 
-# openIMIS Distribution
+ This repository provides a Docker package for openIMIS that includes all components to quickly setup, test and demo the solution.
+ 
 
-This repository provides configuration files for deploying openIMIS via Docker. This is intended to help you setup all components to quickly setup, test and evaluate the solution.
+ If you are only looking to setup and test the solution please look for further instructions on the [openIMIS Wiki](https://openimis.atlassian.net/wiki/spaces/OP/pages/963182705/MO1.1+Install+the+modular+openIMIS+using+Docker)
 
-Detailed instructions are in our Wiki: [Installation Guide](https://openimis.atlassian.net/wiki/spaces/OP/pages/963182705/MO1.1+Install+the+modular+openIMIS+using+Docker)
+ 
+ The openIMIS docker compose currently includes the database, backend and worker, frontend, and third parties components (Lightning, OpenSearch, RabbitMQ, etc.).
+ 
 
 In case of troubles, please contact our service desk via our [ticketing platform](https://openimis.atlassian.net/servicedesk/customer).
 
@@ -105,8 +106,3 @@ pass it into the corresponding test command with `-- --config "baseUrl=http://lo
 
 - Headless: `npx cypress run --config "baseUrl=http://localhost:3000"`
 - Headed: `npx cypress open --config "baseUrl=http://localhost:3000"`
-
-### Using Sentry for Frontend
-
-In order to use Sentry for frontend, you need to add the following environment variables to your `.env` file:
-- REACT_APP_SENTRY_DSN
