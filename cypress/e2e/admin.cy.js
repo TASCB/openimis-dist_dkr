@@ -1,4 +1,4 @@
-import { getProgramTerm, capitalizeWords } from '../support/utils';
+import { getProgramTerm } from '../support/utils';
 
 const path = require('path');
 
@@ -50,7 +50,7 @@ describe('Django admin workflows', () => {
         'Tasks Management',
         'Administration',
       ]
-      const programMenuText = capitalizeWords(getProgramTerm()) + 's'
+      const programMenuText = getProgramTerm({ capitalize: true, plural: true })
       const expectedSubMenuItems = [
         'Individuals',
         'Groups',

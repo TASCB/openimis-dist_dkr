@@ -1,5 +1,15 @@
-export function getProgramTerm() {
-  return Cypress.env('useSocialProtectionLanguagePack') ? 'programme' : 'benefit plan';
+export function getProgramTerm({ capitalize = false, plural = false } = {}) {
+  let term = Cypress.env('useSocialProtectionLanguagePack') ? 'program' : 'benefit plan';
+
+  if (plural) {
+    term = term + 's';
+  }
+
+  if (capitalize) {
+    term = capitalizeWords(term);
+  }
+
+  return term;
 }
 
 export function capitalizeWords(str) {
