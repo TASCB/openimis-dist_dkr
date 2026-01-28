@@ -8,7 +8,3 @@ This repository provides configuration files for deploying openIMIS via Docker. 
 
 Detailed instructions are in our Wiki: [Installation Guide](https://openimis.atlassian.net/wiki/spaces/OP/pages/963182705/MO1.1+Install+the+modular+openIMIS+using+Docker)
 
-### Using Sentry for Frontend
-
-In order to use Sentry for frontend, you need to add the following environment variables to your `.env` file:
-- REACT_APP_SENTRY_DSN
