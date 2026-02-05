@@ -465,7 +465,7 @@ Cypress.Commands.add('enrollBeneficiariesIntoProgram', (
   criterionValue,
   entityName,
 ) => {
-  cy.chooseMuiAutocomplete('BenefitPlan', programName)
+  cy.chooseMuiAutocomplete('Program', programName)
   cy.chooseMuiSelect('Status', status.toUpperCase())
 
   cy.assertMuiSelectValue('Field', criterionField);
