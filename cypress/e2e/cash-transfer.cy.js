@@ -1,4 +1,4 @@
-import { getProgramTerm, getTimestamp } from '../support/utils';
+import { getTimestamp } from '../support/utils';
 
 describe('Cash transfer program creation workflows', () => {
   let testProgramNames = [];
