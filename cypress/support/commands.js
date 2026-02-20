@@ -9,12 +9,18 @@ const getTodayFormatted = () => {
 };
 
 Cypress.Commands.add('login', () => {
-  cy.visit('/front');
-  cy.fixture('cred').then((cred) => {
-    cy.get('input[type="text"]').type(cred.username)
-    cy.get('input[type="password"]').type(cred.password)
-    cy.get('button[type="submit"]').click()
-    cy.contains('Welcome Admin Admin!')
+  cy.getCookie('JWT').then((cookie) => {
+    if (cookie && cookie.value) {
+      cy.visit('/front');
+      return;
+    }
+    cy.visit('/front');
+    cy.fixture('cred').then((cred) => {
+      cy.get('input[type="text"]').type(cred.username)
+      cy.get('input[type="password"]').type(cred.password)
+      cy.get('button[type="submit"]').click()
+      cy.contains('Welcome Admin Admin!')
+    })
   })
 })
 
@@ -905,12 +911,12 @@ Cypress.Commands.add('unlockGrievance', (grievanceCode) => {
 
 Cypress.Commands.add('checkGrievanceFieldValues', (title, category, flag, channel, priority = null, details = null) => {
   cy.assertMuiInput('Grievance Title', title);
-  cy.assertMuiSelectValue('Category', category);
-  cy.assertMuiSelectValue('Flag', flag);
-  cy.assertMuiSelectValue('Channel', channel);
+  cy.assertMuiInput('Category', category);
+  cy.assertMuiInput('Flag', flag);
+  cy.assertMuiInput('Channel', channel);
 
   if (priority) {
-    cy.assertMuiSelectValue('Priority', priority);
+    cy.assertMuiInput('Priority', priority);
   }
 
   if (details) {

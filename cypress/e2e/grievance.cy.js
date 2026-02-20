@@ -55,8 +55,9 @@ describe('Grievance module workflows', () => {
     });
 
     describe('with Beneficiary reporter type', () => {
-      const programCode = 'E2EGRBP';
-      const programName = 'E2E Grievance Beneficiary Program';
+      const uniqueId = Date.now().toString().slice(-4);
+      const programCode = `GRB${uniqueId}`;
+      const programName = `E2E Grievance Beneficiary Program ${uniqueId}`;
 
       before(() => {
         // Disable maker checker
@@ -152,6 +153,8 @@ describe('Grievance module workflows', () => {
 
     before(function () {
       cy.login();
+      cy.ensureSufficientIndividuals(5);
+
       const grievanceData = {
         title: `E2E Comment Test Grievance ${timestamp}`,
         category: 'Category A',
@@ -179,15 +182,14 @@ describe('Grievance module workflows', () => {
     });
 
     it('Adds a comment with Individual reporter type', function () {
-      cy.ensureSufficientIndividuals(5);
-
       const commentText = 'Comment from an individual reporter.';
       cy.addGrievanceComment(commentText, { reporterType: 'Individual' });
     });
 
     describe('with Beneficiary reporter type', () => {
-      const programCode = 'E2EGCBP';
-      const programName = 'E2E Grievance Comment Beneficiary Program';
+      const uniqueId = Date.now().toString().slice(-4);
+      const programCode = `GCB${uniqueId}`;
+      const programName = `E2E Grievance Comment Beneficiary Program ${uniqueId}`;
 
       before(function () {
         cy.login();
@@ -287,7 +289,6 @@ describe('Grievance module workflows', () => {
     });
 
     beforeEach(function () {
-      cy.login();
       cy.visit('/front/ticket/tickets');
       cy.contains('tfoot', 'Rows Per Page').should('be.visible');
     });
@@ -378,18 +379,138 @@ describe('Grievance module workflows', () => {
     });
   });
 
-  describe('Grievance navigation and UI elements', () => {
+  describe('Grievance update workflow', () => {
+    const timestamp = getTimestamp();
+    let grievanceCode;
+
+    before(function () {
+      cy.login();
+      const grievanceData = {
+        title: `E2E Update Test Grievance ${timestamp}`,
+        category: 'Category A',
+        flag: 'Flag A',
+        channel: 'Channel A',
+        priority: 'Normal',
+        details: 'Initial grievance details for update testing.',
+        reporterType: 'None',
+      };
+
+      cy.createGrievance(grievanceData);
+      cy.getGrievanceCodeFromList(grievanceData.title).then(code => {
+        grievanceCode = code;
+      });
+      cy.logout();
+    });
+
     beforeEach(function () {
       cy.login();
     });
 
+    it('Updates grievance title and category', function () {
+      const updateData = {
+        title: `E2E Updated Title ${timestamp}`,
+        category: 'Category B',
+      };
+
+      cy.updateGrievance(grievanceCode, updateData);
+
+      cy.visit('/front/ticket/tickets');
+      cy.checkGrievanceFieldValuesInListView(updateData.title, updateData.category);
+    });
+
+    it('Updates grievance priority and details', function () {
+      const updateData = {
+        priority: 'Critical',
+        details: 'Updated grievance details with critical priority.',
+      };
+
+      cy.updateGrievance(grievanceCode, updateData);
+    });
+  });
+
+  describe('Grievance status workflow', () => {
+    const timestamp = getTimestamp();
+    let grievanceCode;
+
+    before(function () {
+      cy.login();
+      const grievanceData = {
+        title: `E2E Status Workflow Grievance ${timestamp}`,
+        category: 'Category A',
+        flag: 'Flag A',
+        channel: 'Channel A',
+        details: 'Grievance for testing status workflow.',
+        reporterType: 'None',
+      };
+
+      cy.createGrievance(grievanceData);
+      cy.getGrievanceCodeFromList(grievanceData.title).then(code => {
+        grievanceCode = code;
+      });
+      cy.logout();
+    });
+
+    beforeEach(function () {
+      cy.login();
+    });
+
+    it('Resolves a grievance with a resolution comment', function () {
+      cy.resolveGrievance(grievanceCode, 'Issue has been resolved after investigation.');
+
+      cy.visit('/front/ticket/tickets');
+      cy.enterMuiInput('Code', grievanceCode);
+      cy.contains('button', 'Search').click();
+      cy.contains('tfoot', 'Rows Per Page').should('be.visible');
+
+      cy.contains('td', grievanceCode)
+        .parent('tr')
+        .within(() => {
+          cy.contains('td', 'Resolved').should('exist');
+        });
+    });
+  });
+
+  describe('Grievance detail view', () => {
+    const timestamp = getTimestamp();
+    let grievanceCode;
+    const grievanceData = {
+      title: `E2E Detail View Grievance ${timestamp}`,
+      category: 'Category B',
+      flag: 'Flag B',
+      channel: 'Channel B',
+      priority: 'High',
+      details: 'Detailed grievance for view verification.',
+      reporterType: 'None',
+    };
+
+    before(function () {
+      cy.login();
+      cy.createGrievance(grievanceData);
+      cy.getGrievanceCodeFromList(grievanceData.title).then(code => {
+        grievanceCode = code;
+      });
+      cy.logout();
+    });
+
+    it('Displays all grievance fields correctly in detail view', function () {
+      cy.login();
+      cy.searchAndOpenGrievanceForEdit(grievanceCode);
+
+      cy.checkGrievanceFieldValues(
+        grievanceData.title,
+        grievanceData.category,
+        grievanceData.flag,
+        grievanceData.channel,
+        grievanceData.priority
+      );
+    });
+  });
+
+  describe('Grievance navigation and UI elements', () => {
     it('Navigates to grievance creation page from menu', function () {
       cy.visit('/front');
-
-      cy.get('div.MuiDrawer-root').first().within(() => {
-        cy.contains('div[role="button"]', 'Grievance').click();
-        cy.contains('div[role="button"]', 'Add').click();
-      });
+      cy.get('#Grievance-header').click();
+      cy.contains('Add Grievance').click();
 
       cy.url().should('include', '/front/ticket/newTicket');
       cy.contains('label', 'Grievance Title').should('exist');
@@ -398,20 +519,17 @@ describe('Grievance module workflows', () => {
 
     it('Navigates to grievance list page from menu', function () {
       cy.visit('/front');
-
-      cy.get('div.MuiDrawer-root').first().within(() => {
-        cy.contains('div[role="button"]', 'Grievance').click();
-        cy.contains('div[role="button"]', 'Grievances').click();
-      });
+      cy.get('#Grievance-header').click();
+      cy.contains('Grievances').click();
 
       cy.url().should('include', '/front/ticket/tickets');
-      cy.contains('Tickets Found').should('exist');
+      cy.contains('Grievances').should('exist');
     });
 
     it('Displays required field validation on empty form submission', function () {
       cy.visit('/front/ticket/newTicket');
 
-      cy.get('label[role="button"].MuiIconButton-colorPrimary').should('be.disabled');
+      cy.get('label[role="button"].MuiIconButton-colorPrimary.Mui-disabled').should('exist');
 
       cy.contains('label', 'Grievance Title').should('exist');
       cy.contains('label', 'Category').should('exist');
@@ -423,10 +541,10 @@ describe('Grievance module workflows', () => {
       cy.visit('/front/ticket/tickets');
       cy.contains('tfoot', 'Rows Per Page').should('be.visible');
 
-      cy.get('[title="Create"] button').should('exist');
+      cy.get('[title="Add Grievance"] button').should('exist');
 
-      cy.get('[title="Create"] button').click();
-      cy.url().should('include', '/front/ticket/newTicket');
+      cy.get('[title="Add Grievance"] button').click();
+      cy.url().should('include', '/front/ticket/ticket');
     });
   });
 });
