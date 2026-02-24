@@ -1,5 +1,3 @@
-import { getProgramTerm } from '../support/utils';
-
 const path = require('path');
 
 describe('Django admin workflows', () => {
@@ -50,7 +48,7 @@ describe('Django admin workflows', () => {
         'Tasks Management',
         'Administration',
       ]
-      const programMenuText = getProgramTerm({ capitalize: true, plural: true })
+      const programMenuText = 'Programs'
       const expectedSubMenuItems = [
         'Individuals',
         'Groups',

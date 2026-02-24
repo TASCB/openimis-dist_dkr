@@ -32,6 +32,7 @@ services:
     image: ghcr.io/openimis/openimis-fe:${FE_TAG:-develop}
     restart: always
     environment:
+      - REACT_APP_SENTRY_DSN=${REACT_APP_SENTRY_DSN}
       - REACT_APP_API_URL=api
       - NEW_OPENIMIS_HOST=${DOMAIN}
       - OPENIMIS_CONF_JSON=${OPENIMIS_FE_CONF_JSON}

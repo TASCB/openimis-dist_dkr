@@ -1,5 +1,3 @@
-import { getProgramTerm } from '../support/utils';
-
 const getTodayFormatted = () => {
   const today = new Date();
   const day = String(today.getDate()).padStart(2, '0');
@@ -222,8 +220,8 @@ Cypress.Commands.add('deleteProgram', (programName) => {
 
         cy.get('ul.MuiList-root li')
           .first()
-          .should('contain', `Delete ${getProgramTerm()}`);
-          // .should('contain', `Delete ${getProgramTerm()} ${programName}`); //TODO: switch to this after fix
+          .should('contain', 'Delete program');
+          // .should('contain', `Delete program ${programName}`); //TODO: switch to this after fix
 
         // Close journal drawer
         cy.get('.MuiDrawer-paperAnchorRight button')
@@ -275,7 +273,7 @@ Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiarie
 
   // Check last journal message
   cy.get('ul.MuiList-root li').first().click()
-  cy.contains(`Create ${getProgramTerm()}`).should('exist')
+  cy.contains('Create program').should('exist')
   cy.contains('Failed to create').should('not.exist')
 })
 
@@ -296,7 +294,7 @@ Cypress.Commands.add('checkProgramUpdateCompleted', (programName) => {
 
   // Check last journal message
   cy.get('ul.MuiList-root li').first().click()
-  cy.contains(`Update ${getProgramTerm()}`).should('exist')
+  cy.contains('Update program').should('exist')
   cy.contains('Failed to update').should('not.exist')
 })
 
@@ -473,7 +471,7 @@ Cypress.Commands.add('enrollBeneficiariesIntoProgram', (
   criterionValue,
   entityName,
 ) => {
-  cy.chooseMuiAutocomplete(getProgramTerm({ capitalize: true }), programName)
+  cy.chooseMuiAutocomplete('Program', programName)
   cy.chooseMuiSelect('Status', status.toUpperCase())
 
   cy.assertMuiSelectValue('Field', criterionField);
@@ -744,7 +742,7 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
 
     if (grievanceData.reporterType === 'Individual') {
       if (grievanceData.benefitPlan) {
-        cy.chooseMuiAutocomplete(getProgramTerm({ capitalize: true }), grievanceData.benefitPlan);
+        cy.chooseMuiAutocomplete('Program', grievanceData.benefitPlan);
       }
       if (grievanceData.individual) {
         cy.chooseMuiAutocomplete('Individual', grievanceData.individual);
@@ -758,7 +756,7 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
       }
     } else if (grievanceData.reporterType === 'Beneficiary') {
       if (grievanceData.benefitPlan) {
-        cy.chooseMuiAutocomplete(getProgramTerm({ capitalize: true }), grievanceData.benefitPlan);
+        cy.chooseMuiAutocomplete('Program', grievanceData.benefitPlan);
       }
       if (grievanceData.beneficiary) {
         cy.chooseMuiAutocomplete('BeneficiaryPicker', grievanceData.beneficiary);
@@ -848,7 +846,7 @@ Cypress.Commands.add('updateGrievance', (grievanceCode, updateData) => {
   cy.contains('Failed to update').should('not.exist');
 });
 
-Cypress.Commands.add('resolveGrievance', (grievanceCode, comment="Resolved Grievance") => {
+Cypress.Commands.add('resolveGrievance', (grievanceCode, comment = 'Resolved Grievance') => {
   cy.searchAndOpenGrievanceForEdit(grievanceCode);
   cy.addGrievanceComment(comment);
 
@@ -869,12 +867,10 @@ Cypress.Commands.add('unlockGrievance', (grievanceCode) => {
   cy.visit('/front/ticket/tickets');
   cy.contains('tfoot', 'Rows Per Page').should('be.visible');
 
-  // Search for grievance by code
   cy.enterMuiInput('Code', grievanceCode);
   cy.contains('button', 'Search').click();
   cy.contains('tfoot', 'Rows Per Page').should('be.visible');
 
-  // Open grievance for edit
   cy.contains('td', grievanceCode)
     .parent('tr')
     .within(() => {
@@ -959,7 +955,7 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
 
     if (commentData.reporterType === 'Individual') {
       if (commentData.benefitPlan) {
-        cy.chooseMuiAutocomplete(getProgramTerm({ capitalize: true }), commentData.benefitPlan);
+        cy.chooseMuiAutocomplete('Program', commentData.benefitPlan);
       }
       if (commentData.individual) {
         cy.chooseMuiAutocomplete('Individual', commentData.individual);
@@ -972,7 +968,7 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
       }
     } else if (commentData.reporterType === 'Beneficiary') {
       if (commentData.benefitPlan) {
-        cy.chooseMuiAutocomplete(getProgramTerm({ capitalize: true }), commentData.benefitPlan);
+        cy.chooseMuiAutocomplete('Program', commentData.benefitPlan);
       }
       if (commentData.beneficiary) {
         cy.chooseMuiAutocomplete('Beneficiary', commentData.beneficiary);

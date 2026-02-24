@@ -42,6 +42,7 @@ jobs:
           rm -f .env.bak
           echo 'SECRET_KEY=cypressci' >> .env
           echo 'DEMO_DATASET=true' >> .env
+          echo 'DB_TAG=25.04' >> .env
           echo 'BE_TAG=develop' >> .env
           echo 'FE_TAG=develop' >> .env
           echo 'DOMAIN=localhost' >> .env
