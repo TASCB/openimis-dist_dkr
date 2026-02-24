@@ -1,16 +1,24 @@
-x-api: &default-api
-  # image: ghcr.io/openimis/openimis-be:${BE_TAG:-develop}
+x-api: &default-api # image: ghcr.io/openimis/openimis-be:${BE_TAG:-develop}
   image: openimis-be-tz:${BE_TAG:-develop}
-  build: 
+  build:
     context: ./openimis-be_py/
     dockerfile: Dockerfile
   environment:
+    # Primary DB vars
     - DB_DEFAULT=${DB_DEFAULT:-postgresql}
     - DB_HOST=${DB_HOST}
     - DB_PORT=${DB_PORT}
     - DB_NAME=${DB_NAME}
     - DB_USER=${DB_USER}
     - DB_PASSWORD=${DB_PASSWORD}
+
+    # Force any code reading PSQL_* to use the same values
+    - PSQL_DB_HOST=${DB_HOST}
+    - PSQL_DB_PORT=${DB_PORT}
+    - PSQL_DB_NAME=${DB_NAME}
+    - PSQL_DB_USER=${DB_USER}
+    - PSQL_DB_PASSWORD=${DB_PASSWORD}
+
     - SECRET_KEY=${SECRET_KEY}
     - SITE_ROOT=api
     - SITE_URL=${DOMAIN}
@@ -23,6 +31,12 @@ x-api: &default-api
     - OPENSEARCH_ADMIN=${OPENSEARCH_ADMIN}
     - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
     - OPENSEARCH_HOSTS=${OPENSEARCH_HOSTS}
+    - DJANGO_LOG_LEVEL=${DJANGO_LOG_LEVEL:-WARNING}
+    - DJANGO_LOG_HANDLER=${DJANGO_LOG_HANDLER:-debug-log}
+    - DJANGO_MIGRATE=${DJANGO_MIGRATE:-True}
+    - DEMO_DATASET=${DEMO_DATASET:-true}
+    - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
+
   volumes:
     - photos:/openimis-be/openIMIS/images/insurees
   depends_on:
@@ -35,7 +49,7 @@ services:
   frontend:
     # image: ghcr.io/openimis/openimis-fe:${FE_TAG:-develop}
     image: openimis-fe-tz:${FE_TAG:-develop}
-    build: 
+    build:
       context: ./openimis-fe_js/
       dockerfile: Dockerfile
     restart: always
@@ -56,19 +70,22 @@ services:
       - ./data/certbot/www:/var/www/certbot
       # comment the following line if you are using your own gateway
       - ./conf/nginx:/conf/
+
   migrations:
     <<: *default-api
     command: init
     restart: no
+
   backend:
     <<: *default-api
     command: start
     restart: always
     depends_on:
       migrations:
-        condition: service_completed_successfully   
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
+
   worker:
     <<: *default-api
     command: worker
@@ -81,14 +98,22 @@ services:
     deploy:
       mode: replicated
       replicas: ${WORKER_REPLICAS:-3}
+
   rabbitmq:
     image: rabbitmq:3-management
     restart: always
+    environment:
+      - RABBITMQ_MAX_MESSAGE_SIZE=1073741824
     networks:
       openimis-net:
+    ports:
+      - "5673:5672" # AMQP for Celery
+      - "15673:15672" # Web management UI
+
 networks:
   openimis-net:
     name: "${PROJECT_NAME:-openimis}-net"
+
 volumes:
   database:
   photos:
