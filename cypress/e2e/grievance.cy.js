@@ -465,7 +465,32 @@ describe('Grievance module workflows', () => {
       cy.contains('td', grievanceCode)
         .parent('tr')
         .within(() => {
-          cy.contains('td', 'Resolved').should('exist');
+          cy.contains('td', 'CLOSED').should('exist');
+        });
+    });
+
+    it.only('Reopens a resolved grievance', function () {
+      cy.resolveGrievance(grievanceCode, 'Resolving to test reopening.');
+      cy.searchAndOpenGrievanceForEdit(grievanceCode);
+
+      // Click the unlock icon (lock icon in header action area)
+      cy.get('div[class*="paperHeaderAction"] button.MuiIconButton-root').click();
+
+      cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('exist');
+      cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('not.exist');
+
+      cy.get('ul.MuiList-root li').first().click();
+      cy.contains('Failed').should('not.exist');
+
+      cy.visit('/front/ticket/tickets');
+      cy.enterMuiInput('Code', grievanceCode);
+      cy.contains('button', 'Search').click();
+      cy.contains('tfoot', 'Rows Per Page').should('be.visible');
+
+      cy.contains('td', grievanceCode)
+        .parent('tr')
+        .within(() => {
+          cy.contains('td', 'Open').should('exist');
         });
     });
   });

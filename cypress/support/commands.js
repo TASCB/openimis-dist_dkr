@@ -848,41 +848,21 @@ Cypress.Commands.add('updateGrievance', (grievanceCode, updateData) => {
   cy.contains('Failed to update').should('not.exist');
 });
 
-Cypress.Commands.add('resolveGrievance', (grievanceCode, comment) => {
-  cy.visit('/front/ticket/tickets');
-  cy.contains('tfoot', 'Rows Per Page').should('be.visible');
+Cypress.Commands.add('resolveGrievance', (grievanceCode, comment="Resolved Grievance") => {
+  cy.searchAndOpenGrievanceForEdit(grievanceCode);
+  cy.addGrievanceComment(comment);
 
-  // Search for grievance by code
-  cy.enterMuiInput('Code', grievanceCode);
-  cy.contains('button', 'Search').click();
-  cy.contains('tfoot', 'Rows Per Page').should('be.visible');
+  // Click the tick mark icon on the first/latest comment to resolve
+  cy.get('button[title="Resolve grievance with this comment."]').first().click();
 
-  // Open grievance for edit
-  cy.contains('td', grievanceCode)
-    .parent('tr')
-    .within(() => {
-      cy.get('button[title="Edit"]').click();
-    });
-
-  // Add comment
-  if (comment) {
-    cy.enterMuiInput('Comment', comment, 'textarea');
-  }
-
-  // Mark as resolved
-  cy.selectDropdownByLabel('Status', 'Resolved');
-
-  // Save changes
-  cy.get('[title="Save changes"] button, [title="Save"] button').click();
-
-  // Wait for update to complete
+  // Wait for resolve to complete
   cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('exist');
   cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('not.exist');
 
   // Check journal for success
   cy.get('ul.MuiList-root li').first().click();
-  cy.contains('Update ticket', { timeout: 10000 }).should('exist');
-  cy.contains('Failed to update').should('not.exist');
+  cy.contains('Resolve Ticket using comment', { timeout: 10000 }).should('exist');
+  cy.contains('Failed').should('not.exist');
 });
 
 Cypress.Commands.add('unlockGrievance', (grievanceCode) => {
@@ -901,8 +881,8 @@ Cypress.Commands.add('unlockGrievance', (grievanceCode) => {
       cy.get('button[title="Edit"]').click();
     });
 
-  // Unlock the grievance
-  cy.get('button[title="Unlock"], button:contains("Unlock")').click();
+  // Click the lock icon in the header action area to reopen/unlock the grievance
+  cy.get('div[class*="paperHeaderAction"] button.MuiIconButton-root').click();
 
   // Wait for unlock to complete
   cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('exist');
@@ -1019,7 +999,8 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
 
   cy.contains('button', 'Save').click();
 
-  // NOTE: adding a grievance comment triggers a background job, so we wait a bit here also it doesn't reflect in the logs UI as loading spinner
-  cy.wait(2000); // wait for comment to be added
+  // Reload the page to verify comment was saved
+  cy.wait(2000);
+  cy.reload();
   cy.contains(commentText).should('exist');
 });
