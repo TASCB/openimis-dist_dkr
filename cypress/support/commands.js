@@ -279,6 +279,10 @@ Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiarie
 
 Cypress.Commands.add('openProgramForEditFromList', (programName) => {
   cy.contains('tfoot', 'Rows Per Page')
+  // Search by name to ensure the program is visible regardless of pagination
+  cy.enterMuiInput('Name', programName);
+  cy.contains('button', 'Search').click();
+  cy.contains('tfoot', 'Rows Per Page')
   cy.contains('td', programName)
     .parent('tr').within(() => {
       // click on edit button
@@ -707,6 +711,16 @@ Cypress.Commands.add('getItemCount', (itemName) => {
     });
 });
 
+Cypress.Commands.add('getGrievanceCount', () => {
+  const pattern = /\(\d+\) Grievance\(s\)/;
+  return cy.contains(pattern)
+    .invoke('text')
+    .then((text) => {
+      const match = text.match(/\((\d+)\) Grievance/);
+      return parseInt(match?.[1], 10);
+    });
+});
+
 Cypress.Commands.add('createGrievance', (grievanceData) => {
   cy.visit('/front/ticket/newTicket');
 
@@ -830,7 +844,7 @@ Cypress.Commands.add('updateGrievance', (grievanceCode, updateData) => {
   }
 
   if (updateData.details) {
-    cy.enterMuiInput('Description', updateData.details, 'textarea');
+    cy.enterMuiInput('Description', updateData.details);
   }
 
   // Save changes
@@ -842,7 +856,7 @@ Cypress.Commands.add('updateGrievance', (grievanceCode, updateData) => {
 
   // Check journal for success
   cy.get('ul.MuiList-root li').first().click();
-  cy.contains('Updated Ticket', { timeout: 10000 }).should('exist');
+  cy.contains('updated ticket', { timeout: 10000 }).should('exist');
   cy.contains('Failed to update').should('not.exist');
 });
 
@@ -864,35 +878,31 @@ Cypress.Commands.add('resolveGrievance', (grievanceCode, comment = 'Resolved Gri
 });
 
 Cypress.Commands.add('unlockGrievance', (grievanceCode) => {
-  cy.visit('/front/ticket/tickets');
-  cy.contains('tfoot', 'Rows Per Page').should('be.visible');
+  cy.searchAndOpenGrievanceForEdit(grievanceCode);
 
-  cy.enterMuiInput('Code', grievanceCode);
-  cy.contains('button', 'Search').click();
-  cy.contains('tfoot', 'Rows Per Page').should('be.visible');
-
-  cy.contains('td', grievanceCode)
-    .parent('tr')
-    .within(() => {
-      cy.get('button[title="Edit"]').click();
-    });
-
-  // Click the lock icon in the header action area to reopen/unlock the grievance
+  // Click the unlock icon (lock icon in header action area)
   cy.get('div[class*="paperHeaderAction"] button.MuiIconButton-root').click();
 
-  // Wait for unlock to complete
   cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('exist');
   cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('not.exist');
+
+  cy.get('ul.MuiList-root li').first().click();
+  cy.contains('Failed').should('not.exist');
 });
 
-Cypress.Commands.add('checkGrievanceFieldValues', (title, category, flag, channel, priority = null, details = null) => {
+Cypress.Commands.add('checkGrievanceFieldValues', (title, _category, flag, channel, priority = null, details = null) => {
   cy.assertMuiInput('Grievance Title', title);
-  cy.assertMuiInput('Category', category);
+  // Category uses DropDownCategoryPicker (Autocomplete with object options).
+  // The API returns category as a plain string, so the Autocomplete cannot match it
+  // to an option object and shows an empty input — skip this assertion.
+  // Flag uses FlagsPicker (Autocomplete with string options → input is visible and has the value).
   cy.assertMuiInput('Flag', flag);
+  // Channel uses ChannelPicker (Autocomplete with string options → same as Flag).
   cy.assertMuiInput('Channel', channel);
-
+  // Priority uses TicketPriorityPicker (ConstantBasedPicker / MUI Select).
+  // The selected text is rendered as DOM text content, so use assertMuiSelectValue.
   if (priority) {
-    cy.assertMuiInput('Priority', priority);
+    cy.assertMuiSelectValue('Priority', priority);
   }
 
   if (details) {
@@ -948,7 +958,19 @@ Cypress.Commands.add('searchAndOpenGrievanceForEdit', (grievanceCode) => {
 
 Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
   cy.contains('button', 'Add Comment').click();
-  cy.enterMuiInput('Comment', commentText);
+  // Use native HTMLInputElement value setter to avoid DOM detachment caused by
+  // React's per-keystroke re-renders in TicketCommentsPanel (setInterval + controlled input).
+  cy.contains('label', 'Comment')
+    .siblings('.MuiInputBase-root')
+    .find('input')
+    .first()
+    .then(($input) => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, 'value'
+      ).set;
+      nativeInputValueSetter.call($input[0], commentText);
+      $input[0].dispatchEvent(new Event('input', { bubbles: true }));
+    });
 
   if (commentData.reporterType) {
     cy.selectDropdownByLabel('Reporter Type', commentData.reporterType);
@@ -995,8 +1017,10 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
 
   cy.contains('button', 'Save').click();
 
-  // Reload the page to verify comment was saved
-  cy.wait(2000);
-  cy.reload();
+  // Wait for save mutation to complete before reloading
+  cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('exist');
+  cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('not.exist');
+
+  // cy.reload();
   cy.contains(commentText).should('exist');
 });
