@@ -7,19 +7,24 @@ const getTodayFormatted = () => {
 };
 
 Cypress.Commands.add('login', () => {
-  cy.getCookie('JWT').then((cookie) => {
-    if (cookie && cookie.value) {
-      cy.visit('/front');
+  cy.visit('/front');
+
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    const hasLogoutButton = $body.find('button[title="Log out"]').length > 0;
+    if (hasLogoutButton) {
       return;
     }
-    cy.visit('/front');
+
     cy.fixture('cred').then((cred) => {
-      cy.get('input[type="text"]').type(cred.username)
-      cy.get('input[type="password"]').type(cred.password)
-      cy.get('button[type="submit"]').click()
-      cy.contains('Welcome Admin Admin!')
-    })
-  })
+      cy.visit('/front/login');
+      cy.get('input[type="text"]', { timeout: 15000 }).first().clear().type(cred.username);
+      cy.get('input[type="password"]', { timeout: 15000 }).first().clear().type(cred.password);
+      cy.get('button[type="submit"]').click();
+      cy.url({ timeout: 15000 }).should('not.include', '/front/login');
+    });
+  });
+
+  cy.contains('Welcome Admin Admin!', { timeout: 15000 }).should('be.visible');
 })
 
 Cypress.Commands.add('logout', () => {
@@ -776,8 +781,14 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
         cy.chooseMuiAutocomplete('BeneficiaryPicker', grievanceData.beneficiary);
       } else {
         // Select first available beneficiary
-        cy.wait(2000);
-        cy.selectDropdownByLabel('BeneficiaryPicker')
+        cy.contains('label', 'BeneficiaryPicker')
+          .siblings('.MuiInputBase-root')
+          .find('input')
+          .click();
+        cy.get('[role="menu"] li, [role="presentation"] li')
+          .should('have.length.at.least', 1)
+          .first()
+          .click();
       }
     } else if (grievanceData.reporterType === 'Attending Staff') {
       if (grievanceData.attendingStaff) {
@@ -965,11 +976,13 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
     .find('input')
     .first()
     .then(($input) => {
+      const inputEl = $input[0];
+      const win = inputEl.ownerDocument.defaultView || window;
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype, 'value'
+        win.HTMLInputElement.prototype, 'value'
       ).set;
-      nativeInputValueSetter.call($input[0], commentText);
-      $input[0].dispatchEvent(new Event('input', { bubbles: true }));
+      nativeInputValueSetter.call(inputEl, commentText);
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
     });
 
   if (commentData.reporterType) {
@@ -995,12 +1008,14 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
       if (commentData.beneficiary) {
         cy.chooseMuiAutocomplete('Beneficiary', commentData.beneficiary);
       } else {
-        cy.wait(2000);
         cy.contains('label', 'Beneficiary')
           .siblings('.MuiInputBase-root')
           .find('input')
           .click();
-        cy.get('[role="menu"] li, [role="presentation"] li').first().click();
+        cy.get('[role="menu"] li, [role="presentation"] li')
+          .should('have.length.at.least', 1)
+          .first()
+          .click();
       }
     } else if (commentData.reporterType === 'Attending Staff') {
       if (commentData.attendingStaff) {

@@ -91,11 +91,12 @@ describe('Grievance module workflows', () => {
 
       after(function () {
         cy.deleteProgram(programName);
+        cy.logout();
       });
 
       it('Creates a grievance with Beneficiary reporter type', function () {
         const grievanceData = {
-          title: 'E2E Beneficiary Reporter Grievance',
+          title: `E2E Beneficiary Reporter Grievance ${timestamp}`,
           category: 'Category A',
           flag: 'Flag A',
           channel: 'Channel A',
@@ -206,7 +207,6 @@ describe('Grievance module workflows', () => {
       });
 
       after(function () {
-        cy.login();
         cy.deleteProgram(programName);
         cy.logout();
       });
