@@ -296,7 +296,7 @@ describe('Grievance module workflows', () => {
     });
 
     it('Filters grievances by category', function () {
-      cy.selectDropdownByLabel('Category', 'Category A');
+      cy.chooseMuiAutocomplete('Category', 'Category A');
       cy.wait(900); // wait for 800ms filter debounce before triggering search
       cy.contains('button', 'Search').click();
       cy.contains('tfoot', 'Rows Per Page').should('be.visible');
@@ -309,7 +309,7 @@ describe('Grievance module workflows', () => {
     });
 
     it('Filters grievances by priority', function () {
-      cy.selectDropdownByLabel('Priority', 'Critical');
+      cy.chooseMuiSelect('Priority', 'Critical');
       cy.wait(900); // wait for 800ms filter debounce before triggering search
       cy.contains('button', 'Search').click();
       cy.contains('tfoot', 'Rows Per Page').should('be.visible');
@@ -348,8 +348,8 @@ describe('Grievance module workflows', () => {
 
     it('Clears all filters when Clear button is clicked', function () {
       cy.enterMuiInput('Title', 'Test Filter');
-      cy.selectDropdownByLabel('Priority', 'Critical');
-      cy.selectDropdownByLabel('Category', 'Category A');
+      cy.chooseMuiSelect('Priority', 'Critical');
+      cy.chooseMuiAutocomplete('Category', 'Category A');
 
       cy.contains('button', 'Reset filters').click();
 
@@ -366,20 +366,19 @@ describe('Grievance module workflows', () => {
 
   describe('Grievance update workflow', () => {
     const timestamp = getTimestamp();
+    const grievanceData = {
+      title: `E2E Update Test Grievance ${timestamp}`,
+      category: 'Category A',
+      flag: 'Flag A',
+      channel: 'Channel A',
+      priority: 'Normal',
+      details: 'Initial grievance details for update testing.',
+      reporterType: 'Attending Staff',
+    };
     let grievanceCode;
 
     before(function () {
       cy.login();
-      const grievanceData = {
-        title: `E2E Update Test Grievance ${timestamp}`,
-        category: 'Category A',
-        flag: 'Flag A',
-        channel: 'Channel A',
-        priority: 'Normal',
-        details: 'Initial grievance details for update testing.',
-        reporterType: 'None',
-      };
-
       cy.createGrievance(grievanceData);
       cy.getGrievanceCodeFromList(grievanceData.title).then(code => {
         grievanceCode = code;
@@ -393,7 +392,9 @@ describe('Grievance module workflows', () => {
         category: 'Category B',
       };
 
-      cy.updateGrievance(grievanceCode, updateData);
+      cy.updateGrievance(grievanceCode, updateData, {
+        reporterFieldLabel: 'User',
+      });
 
       cy.visit('/front/ticket/tickets');
       cy.checkGrievanceFieldValuesInListView(updateData.title, updateData.category);
@@ -405,7 +406,9 @@ describe('Grievance module workflows', () => {
         details: 'Updated grievance details with critical priority.',
       };
 
-      cy.updateGrievance(grievanceCode, updateData);
+      cy.updateGrievance(grievanceCode, updateData, {
+        reporterFieldLabel: 'User',
+      });
     });
   });
 

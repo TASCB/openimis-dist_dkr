@@ -633,21 +633,6 @@ Cypress.Commands.add('chooseMuiSelect', (label, value) => {
   cy.get('@option').click()
 })
 
-Cypress.Commands.add('selectDropdownByLabel', (label, value = null) => {
-  cy.contains('label', label)
-    .parent()
-    .click()
-
-  if (value) {
-    cy.contains('li[role="option"]', value)
-      .click()
-  } else {
-    cy.get('li[role="option"]')
-      .first()
-      .click()
-  }
-})
-
 Cypress.Commands.add('assertMuiInput', (label, value, inputTag='input') => {
   cy.contains('label', label)
     .siblings('.MuiInputBase-root')
@@ -673,13 +658,23 @@ Cypress.Commands.add('assertMuiSelectValue', (label, value) => {
     .contains(value)
 })
 
-Cypress.Commands.add('chooseMuiAutocomplete', (label, value) => {
+Cypress.Commands.add('chooseMuiAutocomplete', (label, value = null) => {
   cy.contains('label', label)
     .siblings('.MuiInputBase-root')
     .find('input')
     .click()
 
-  cy.contains('[role="menu"] li, [role="presentation"] li', value).click();
+  const optionSelector = '[role="menu"] li, [role="presentation"] li, [role="listbox"] li, li[role="option"]'
+
+  if (value) {
+    cy.contains(optionSelector, value).click();
+    return
+  }
+
+  cy.get(optionSelector)
+    .should('have.length.at.least', 1)
+    .first()
+    .click()
 })
 
 Cypress.Commands.add('setModuleConfig', (moduleName, configFixtureFile) => {
@@ -731,13 +726,13 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
 
   // Required fields
   cy.enterMuiInput('Grievance Title', grievanceData.title);
-  cy.selectDropdownByLabel('Category', grievanceData.category);
-  cy.selectDropdownByLabel('Flag', grievanceData.flag);
-  cy.selectDropdownByLabel('Channel', grievanceData.channel);
+  cy.chooseMuiAutocomplete('Category', grievanceData.category);
+  cy.chooseMuiAutocomplete('Flag', grievanceData.flag);
+  cy.chooseMuiAutocomplete('Channel', grievanceData.channel);
 
   // Optional fields
   if (grievanceData.priority) {
-    cy.selectDropdownByLabel('Priority', grievanceData.priority);
+    cy.chooseMuiSelect('Priority', grievanceData.priority);
   }
 
   if (grievanceData.dateOfIncident) {
@@ -757,7 +752,7 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
 
   // Reporter type handling
   if (grievanceData.reporterType) {
-    cy.selectDropdownByLabel('Reporter Type', grievanceData.reporterType);
+    cy.chooseMuiSelect('Reporter Type', grievanceData.reporterType);
 
     if (grievanceData.reporterType === 'Individual') {
       if (grievanceData.benefitPlan) {
@@ -766,12 +761,7 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
       if (grievanceData.individual) {
         cy.chooseMuiAutocomplete('Individual', grievanceData.individual);
       } else {
-        // Select first available individual
-        cy.contains('label', 'Individual')
-          .siblings('.MuiInputBase-root')
-          .find('input')
-          .click();
-        cy.get('[role="menu"] li, [role="presentation"] li').first().click();
+        cy.chooseMuiAutocomplete('Individual');
       }
     } else if (grievanceData.reporterType === 'Beneficiary') {
       if (grievanceData.benefitPlan) {
@@ -780,26 +770,13 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
       if (grievanceData.beneficiary) {
         cy.chooseMuiAutocomplete('BeneficiaryPicker', grievanceData.beneficiary);
       } else {
-        // Select first available beneficiary
-        cy.contains('label', 'BeneficiaryPicker')
-          .siblings('.MuiInputBase-root')
-          .find('input')
-          .click();
-        cy.get('[role="menu"] li, [role="presentation"] li')
-          .should('have.length.at.least', 1)
-          .first()
-          .click();
+        cy.chooseMuiAutocomplete('BeneficiaryPicker');
       }
     } else if (grievanceData.reporterType === 'Attending Staff') {
       if (grievanceData.attendingStaff) {
         cy.chooseMuiAutocomplete('Complainant', grievanceData.attendingStaff);
       } else {
-        // Select first available staff
-        cy.contains('label', 'Complainant')
-          .siblings('.MuiInputBase-root')
-          .find('input')
-          .click();
-        cy.get('[role="menu"] li, [role="presentation"] li').first().click();
+        cy.chooseMuiAutocomplete('Complainant');
       }
     }
   }
@@ -817,7 +794,7 @@ Cypress.Commands.add('createGrievance', (grievanceData) => {
   cy.contains('Failed to create').should('not.exist');
 });
 
-Cypress.Commands.add('updateGrievance', (grievanceCode, updateData) => {
+Cypress.Commands.add('updateGrievance', (grievanceCode, updateData, immutableFields = {}) => {
   cy.visit('/front/ticket/tickets');
   cy.contains('tfoot', 'Rows Per Page').should('be.visible');
 
@@ -833,25 +810,36 @@ Cypress.Commands.add('updateGrievance', (grievanceCode, updateData) => {
       cy.get('button[title="Edit"]').click();
     });
 
+  if (immutableFields.reporterType) {
+    cy.assertMuiInputDisabled('Reporter Type', immutableFields.reporterType);
+  }
+
+  if (immutableFields.reporterFieldLabel) {
+    cy.assertMuiInputDisabled(
+      immutableFields.reporterFieldLabel,
+      immutableFields.reporterFieldValue ?? null
+    );
+  }
+
   // Update fields (excluding reporter type and reporter info)
   if (updateData.title) {
     cy.enterMuiInput('Title', updateData.title);
   }
 
   if (updateData.category) {
-    cy.selectDropdownByLabel('Category', updateData.category);
+    cy.chooseMuiAutocomplete('Category', updateData.category);
   }
 
   if (updateData.flag) {
-    cy.selectDropdownByLabel('Flag', updateData.flag);
+    cy.chooseMuiAutocomplete('Flag', updateData.flag);
   }
 
   if (updateData.channel) {
-    cy.selectDropdownByLabel('Channel', updateData.channel);
+    cy.chooseMuiAutocomplete('Channel', updateData.channel);
   }
 
   if (updateData.priority) {
-    cy.selectDropdownByLabel('Priority', updateData.priority);
+    cy.chooseMuiSelect('Priority', updateData.priority);
   }
 
   if (updateData.details) {
@@ -901,17 +889,11 @@ Cypress.Commands.add('unlockGrievance', (grievanceCode) => {
   cy.contains('Failed').should('not.exist');
 });
 
-Cypress.Commands.add('checkGrievanceFieldValues', (title, _category, flag, channel, priority = null, details = null) => {
+Cypress.Commands.add('checkGrievanceFieldValues', (title, category, flag, channel, priority = null, details = null) => {
   cy.assertMuiInput('Grievance Title', title);
-  // Category uses DropDownCategoryPicker (Autocomplete with object options).
-  // The API returns category as a plain string, so the Autocomplete cannot match it
-  // to an option object and shows an empty input — skip this assertion.
-  // Flag uses FlagsPicker (Autocomplete with string options → input is visible and has the value).
+  cy.assertMuiInput('Category', category);
   cy.assertMuiInput('Flag', flag);
-  // Channel uses ChannelPicker (Autocomplete with string options → same as Flag).
   cy.assertMuiInput('Channel', channel);
-  // Priority uses TicketPriorityPicker (ConstantBasedPicker / MUI Select).
-  // The selected text is rendered as DOM text content, so use assertMuiSelectValue.
   if (priority) {
     cy.assertMuiSelectValue('Priority', priority);
   }
@@ -986,7 +968,7 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
     });
 
   if (commentData.reporterType) {
-    cy.selectDropdownByLabel('Reporter Type', commentData.reporterType);
+    cy.chooseMuiSelect('Reporter Type', commentData.reporterType);
 
     if (commentData.reporterType === 'Individual') {
       if (commentData.benefitPlan) {
@@ -995,11 +977,7 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
       if (commentData.individual) {
         cy.chooseMuiAutocomplete('Individual', commentData.individual);
       } else {
-        cy.contains('label', 'Individual')
-          .siblings('.MuiInputBase-root')
-          .find('input')
-          .click();
-        cy.get('[role="menu"] li, [role="presentation"] li').first().click();
+        cy.chooseMuiAutocomplete('Individual');
       }
     } else if (commentData.reporterType === 'Beneficiary') {
       if (commentData.benefitPlan) {
@@ -1008,24 +986,13 @@ Cypress.Commands.add('addGrievanceComment', (commentText, commentData = {}) => {
       if (commentData.beneficiary) {
         cy.chooseMuiAutocomplete('Beneficiary', commentData.beneficiary);
       } else {
-        cy.contains('label', 'Beneficiary')
-          .siblings('.MuiInputBase-root')
-          .find('input')
-          .click();
-        cy.get('[role="menu"] li, [role="presentation"] li')
-          .should('have.length.at.least', 1)
-          .first()
-          .click();
+        cy.chooseMuiAutocomplete('Beneficiary');
       }
     } else if (commentData.reporterType === 'Attending Staff') {
       if (commentData.attendingStaff) {
         cy.chooseMuiAutocomplete('Commenter', commentData.attendingStaff);
       } else {
-        cy.contains('label', 'Commenter')
-          .siblings('.MuiInputBase-root')
-          .find('input')
-          .click();
-        cy.get('[role="menu"] li, [role="presentation"] li').first().click();
+        cy.chooseMuiAutocomplete('Commenter');
       }
     }
   }
