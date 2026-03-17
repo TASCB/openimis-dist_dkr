@@ -409,6 +409,9 @@ describe('Grievance module workflows', () => {
       cy.updateGrievance(grievanceCode, updateData, {
         reporterFieldLabel: 'User',
       });
+
+      cy.assertMuiSelectValue('Priority', updateData.priority);
+      cy.assertMuiInput('Description', updateData.details);
     });
   });
 
