@@ -1,3 +1,7 @@
+import { registerPaymentPlanCommands } from './payment-plan.commands';
+import { registerPaymentCycleCommands } from './payment-cycle.commands';
+
 export function registerPaymentCommands() {
-  // Reserved for incremental payment command rollout.
+  registerPaymentPlanCommands();
+  registerPaymentCycleCommands();
 }
