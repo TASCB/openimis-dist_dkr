@@ -113,4 +113,25 @@ export function registerAdminCommands() {
       cy.contains('was added successfully');
     });
   });
+
+  Cypress.Commands.add('setFrontendModuleConfig', (moduleName, configFixtureFile) => {
+    cy.deleteModuleConfig(moduleName);
+    cy.visit('/api/admin/core/moduleconfiguration/');
+    cy.contains('a', 'Add module configuration').click();
+    cy.get('input[name="module"]').type(moduleName);
+    cy.get('select[name="layer"]').select('frontend');
+    cy.get('input[name="version"]').type(1);
+
+    cy.fixture(configFixtureFile).then((config) => {
+      const configString = JSON.stringify(config, null, 2);
+      cy.get('textarea[name="config"]')
+        .type(configString, {
+          parseSpecialCharSequences: false,
+          delay: 0,
+        });
+      cy.get('input[name="is_exposed"]').check();
+      cy.get('input[value="Save"]').click();
+      cy.contains('was added successfully');
+    });
+  });
 }

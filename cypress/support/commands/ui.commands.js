@@ -43,6 +43,14 @@ export function registerUiCommands() {
       .contains(value);
   });
 
+  // Use this instead of enterMuiInput for MUI DatePicker fields.
+  // DatePicker opens a modal dialog when interacted with; this command types
+  // the value and then confirms the dialog so it doesn't block subsequent actions.
+  Cypress.Commands.add('enterDateInput', (label, value) => {
+    cy.enterMuiInput(label, value);
+    cy.contains('button', 'OK').click();
+  });
+
   Cypress.Commands.add('chooseMuiAutocomplete', (label, value = null) => {
     cy.contains('label', label)
       .siblings('.MuiInputBase-root')

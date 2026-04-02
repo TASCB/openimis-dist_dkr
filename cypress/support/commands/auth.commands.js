@@ -1,29 +1,64 @@
 export function registerAuthCommands() {
   Cypress.Commands.add('login', () => {
-    cy.visit('/front');
+    cy.visit('/front/login');
 
-    cy.get('body', { timeout: 15000 }).then(($body) => {
-      const hasLogoutButton = $body.find('button[title="Log out"]').length > 0;
-      if (hasLogoutButton) {
-        return;
-      }
+    cy.get('body', { timeout: 15000 })
+      .should(($body) => {
+        const loggedIn = $body.find('button[title="Log out"]').length > 0
+          || $body.text().includes('Welcome Admin Admin!');
+        const onLoginPage = $body.find('input[type="password"]').length > 0
+          || $body.find('button').toArray().some((el) => el.textContent.trim() === 'Log In');
+        expect(
+          loggedIn || onLoginPage,
+          'frontend authenticated shell or login page should be visible',
+        ).to.be.true;
+      })
+      .then(($body) => {
+        const loggedIn = $body.find('button[title="Log out"]').length > 0
+          || $body.text().includes('Welcome Admin Admin!');
 
-      cy.fixture('cred').then((cred) => {
-        cy.visit('/front/login');
-        cy.get('input[type="text"]', { timeout: 15000 }).first().clear().type(cred.username);
-        cy.get('input[type="password"]', { timeout: 15000 }).first().clear().type(cred.password);
-        cy.get('button[type="submit"]').click();
-        cy.url({ timeout: 15000 }).should('not.include', '/front/login');
+        if (loggedIn) {
+          return;
+        }
+
+        cy.fixture('cred').then((cred) => {
+          cy.get('input[type="text"]', { timeout: 15000 })
+            .first()
+            .clear()
+            .type(cred.username);
+          cy.get('input[type="password"]', { timeout: 15000 })
+            .first()
+            .clear()
+            .type(cred.password);
+          cy.get('button[type="submit"]').click();
+          cy.contains('Welcome Admin Admin!', { timeout: 15000 }).should('be.visible');
+        });
       });
-    });
-
-    cy.contains('Welcome Admin Admin!', { timeout: 15000 }).should('be.visible');
   });
 
   Cypress.Commands.add('logout', () => {
     cy.visit('/front');
-    cy.get('button[title="Log out"]').click();
-    cy.contains('label', 'Username');
+
+    // Wait until the SPA has settled: either the logout button is in the navbar
+    // (logged in) or the login form is visible (already logged out).
+    cy.get('body', { timeout: 15000 })
+      .should(($body) => {
+        const loggedIn = $body.find('button[title="Log out"]').length > 0;
+        const onLoginPage = $body.find('input[type="password"]').length > 0
+          || $body.find('button').toArray().some((el) => el.textContent.trim() === 'Log In');
+        expect(loggedIn || onLoginPage, 'app should show logout button or login form').to.be.true;
+      })
+      .then(($body) => {
+        if ($body.find('button[title="Log out"]').length > 0) {
+          cy.get('button[title="Log out"]').click();
+          cy.contains('button', 'Log In', { timeout: 15000 }).should('be.visible');
+          return;
+        }
+
+        // Already logged out — just confirm login state
+        cy.visit('/front/login');
+        cy.contains('button', 'Log In', { timeout: 15000 }).should('be.visible');
+      });
   });
 
   Cypress.Commands.add('loginAdminInterface', () => {
@@ -38,6 +73,10 @@ export function registerAuthCommands() {
 
   Cypress.Commands.add('logoutAdminInterface', () => {
     cy.visit('/api/admin');
-    cy.contains('button', 'Log out').click();
+    cy.get('body', { timeout: 15000 }).then(($body) => {
+      if ($body.find('button:contains("Log out"), a:contains("Log out")').length > 0) {
+        cy.contains('button, a', 'Log out').click();
+      }
+    });
   });
 }
