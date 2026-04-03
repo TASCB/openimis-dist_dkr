@@ -65,4 +65,82 @@ describe('Payment cycle workflows', () => {
     cy.openPaymentCycleForViewFromList(cycle.code);
     cy.assertMuiInput('Code', cycle.code);
   });
+
+  it('creates an ACTIVE payment cycle', () => {
+    const cycle = cycleData();
+
+    cy.openCreatePaymentCycle();
+    cy.fillPaymentCycleForm({ ...cycle, status: 'ACTIVE' });
+    cy.savePaymentCycle();
+
+    // Creating an ACTIVE cycle triggers a coreAlert dialog; dismiss it.
+    cy.get('body').then(($body) => {
+      if ($body.find('[role="dialog"]').length > 0) {
+        cy.get('[role="dialog"] .MuiDialogActions-root button').first().click();
+      }
+    });
+
+    cy.filterPaymentCycles({ code: cycle.code });
+    cy.assertPaymentCycleRowVisible({ code: cycle.code });
+  });
+
+  it('creates a SUSPENDED payment cycle', () => {
+    const cycle = cycleData();
+
+    cy.createPaymentCycle({ ...cycle, status: 'SUSPENDED' });
+
+    cy.filterPaymentCycles({ code: cycle.code });
+    cy.assertPaymentCycleRowVisible({ code: cycle.code });
+  });
+
+  it('filters payment cycles by status', () => {
+    const pendingCycle = cycleData();
+    const suspendedCycle = cycleData();
+
+    cy.createPaymentCycle({ ...pendingCycle, status: 'PENDING' });
+    cy.createPaymentCycle({ ...suspendedCycle, status: 'SUSPENDED' });
+
+    cy.filterPaymentCycles({ status: 'PENDING' });
+    cy.assertPaymentCycleRowVisible({ code: pendingCycle.code });
+
+    cy.filterPaymentCycles({ status: 'SUSPENDED' });
+    cy.assertPaymentCycleRowVisible({ code: suspendedCycle.code });
+  });
+
+  it('shows read-only fields on the detail page', () => {
+    const cycle = cycleData();
+
+    cy.createPaymentCycle(cycle);
+    cy.openPaymentCycleForViewFromList(cycle.code);
+
+    cy.assertMuiInputDisabled('Code', cycle.code);
+  });
+
+  it('blocks save when the code is changed to a duplicate value', () => {
+    const existingCycle = cycleData();
+    const newCycle = cycleData();
+
+    cy.createPaymentCycle(existingCycle);
+
+    cy.openCreatePaymentCycle();
+    cy.fillPaymentCycleForm(newCycle);
+    // Save button should be enabled with a unique code.
+    cy.get('[title="Save changes"] button').should('not.be.disabled');
+
+    // Change the code to the existing cycle's code.
+    cy.enterMuiInput('Code', existingCycle.code);
+    // The async code validation should disable save.
+    cy.get('[title="Save changes"] button', { timeout: 10000 }).should('be.disabled');
+  });
+
+  it('creates a payment cycle and immediately searches for it', () => {
+    const cycle = cycleData();
+
+    cy.createPaymentCycle(cycle);
+
+    // Navigate to list and search right away — the cycle should be visible
+    // without a page refresh or delay.
+    cy.filterPaymentCycles({ code: cycle.code });
+    cy.assertPaymentCycleRowVisible({ code: cycle.code });
+  });
 });

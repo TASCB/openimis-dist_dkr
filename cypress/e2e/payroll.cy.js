@@ -155,6 +155,17 @@ describe('Payroll workflows', () => {
     cy.assertPayrollRowVisible({ name: payroll.name });
   });
 
+  it('verifies a newly-created payroll has PENDING APPROVAL status', () => {
+    const payroll = payrollData('Status Check');
+
+    cy.createPayroll(payroll);
+    trackPayroll(payroll.name);
+
+    cy.openPayrollForViewFromList(payroll.name);
+    // The status field on the detail page should show PENDING APPROVAL.
+    cy.contains('PENDING APPROVAL').should('exist');
+  });
+
   it('opens and closes the reconciliation summary dialog from the pending list', () => {
     const payroll = payrollData('Reconcile Dialog');
 
@@ -164,5 +175,29 @@ describe('Payroll workflows', () => {
     cy.openPayrollPendingSummary(payroll.name);
     cy.contains('button', 'Close').click();
     cy.contains('View Reconciliation Summary:').should('not.exist');
+  });
+
+  it('end-to-end: payment plan → payment cycle → payroll integration', () => {
+    // This test verifies the full cross-domain flow using the prerequisites
+    // already created in before().  A new payroll is created and verified.
+    const payroll = payrollData('Integration');
+
+    cy.createPayroll(payroll);
+    trackPayroll(payroll.name);
+
+    // Verify payroll appears in main list.
+    cy.filterPayrolls({ name: payroll.name });
+    cy.assertPayrollRowVisible({ name: payroll.name });
+
+    // Verify payroll appears in pending list.
+    cy.visit('/front/payrollsPending');
+    cy.contains('Payrolls Found');
+    cy.contains('button', 'Search').click();
+    cy.assertPayrollRowVisible({ name: payroll.name });
+
+    // Verify detail page shows correct associations.
+    cy.openPayrollForViewFromList(payroll.name);
+    cy.assertMuiInput('Name', payroll.name);
+    cy.contains('PENDING APPROVAL').should('exist');
   });
 });

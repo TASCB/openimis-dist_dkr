@@ -199,6 +199,7 @@ export function registerPaymentPlanCommands() {
   Cypress.Commands.add('filterPaymentPlans', ({
     code,
     name,
+    benefitPlan,
     showDeleted = false,
     showHistory = false,
   } = {}) => {
@@ -210,6 +211,10 @@ export function registerPaymentPlanCommands() {
     }
     if (name !== undefined) {
       cy.enterMuiInput('Name', name);
+    }
+    if (benefitPlan !== undefined) {
+      // The Benefit Product filter is a ProductPicker autocomplete.
+      cy.chooseMuiAutocomplete('Benefit Product', benefitPlan);
     }
     if (showDeleted) {
       cy.contains('label', 'Show Deleted').click();

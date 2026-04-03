@@ -230,4 +230,103 @@ describe('Payment plan workflows', () => {
     cy.filterPaymentPlans({ code: paymentPlan.code });
     cy.assertPaymentPlanRowVisible(paymentPlan);
   });
+
+  it('verifies calculation rule selection persists after save and reopen', () => {
+    const paymentPlan = planData('CalcRule Persist', individualProgramName);
+
+    cy.createPaymentPlan(paymentPlan);
+    trackPaymentPlan(paymentPlan.name);
+
+    cy.openPaymentPlanForEditFromList(paymentPlan.code);
+    // The Calculation Rule field is a Contributions component rendered as a
+    // select.  After save and reopen it should have a non-empty value.
+    cy.contains('label', 'Calculation Rule')
+      .siblings('.MuiInputBase-root')
+      .find('[role="button"]')
+      .invoke('text')
+      .should('not.be.empty');
+  });
+
+  it('filters payment plans by benefit plan / program', () => {
+    const planA = planData('Filter BP A', individualProgramName);
+    const planB = planData('Filter BP B', groupProgramName);
+
+    cy.createPaymentPlan(planA);
+    cy.createPaymentPlan(planB);
+    trackPaymentPlan(planA.name);
+    trackPaymentPlan(planB.name);
+
+    cy.filterPaymentPlans({ benefitPlan: individualProgramName });
+    cy.assertPaymentPlanRowVisible({ name: planA.name });
+    cy.assertPaymentPlanRowNotVisible({ name: planB.name });
+
+    cy.filterPaymentPlans({ benefitPlan: groupProgramName });
+    cy.assertPaymentPlanRowVisible({ name: planB.name });
+    cy.assertPaymentPlanRowNotVisible({ name: planA.name });
+  });
+
+  it('applies multiple advanced criteria rows', () => {
+    const paymentPlan = planData('Multi Criteria', individualProgramName);
+
+    cy.openCreatePaymentPlan();
+    cy.fillPaymentPlanForm({
+      type: 'Benefit Plan',
+      code: paymentPlan.code,
+      name: paymentPlan.name,
+      benefitPlanName: paymentPlan.benefitPlanName,
+      dateValidFrom: paymentPlan.dateValidFrom,
+    });
+
+    // First criterion
+    cy.contains('button', 'Add criterion').click();
+    cy.contains('label', 'Field')
+      .last()
+      .siblings('.MuiInputBase-root')
+      .find('[role="button"]')
+      .click();
+    cy.contains('[role="listbox"] li', 'Educated level', { timeout: 15000 }).click();
+    cy.contains('label', 'Confirm Filters')
+      .last()
+      .siblings('.MuiInputBase-root')
+      .find('[role="button"]')
+      .click();
+    cy.contains('[role="listbox"] li', 'Contains').click();
+    cy.contains('label', 'Value')
+      .last()
+      .siblings('.MuiInputBase-root')
+      .find('input')
+      .first()
+      .clear({ force: true })
+      .type('prim', { force: true });
+
+    // Second criterion
+    cy.contains('button', 'Add criterion').click();
+    cy.contains('label', 'Field')
+      .last()
+      .siblings('.MuiInputBase-root')
+      .find('[role="button"]')
+      .click();
+    cy.contains('[role="listbox"] li', 'Able bodied', { timeout: 15000 }).click();
+    cy.contains('label', 'Confirm Filters')
+      .last()
+      .siblings('.MuiInputBase-root')
+      .find('[role="button"]')
+      .click();
+    cy.contains('[role="listbox"] li', 'Exact').click();
+    cy.contains('label', 'Value')
+      .last()
+      .siblings('.MuiInputBase-root')
+      .find('[role="button"]')
+      .click();
+    cy.contains('[role="listbox"] li', 'True').click();
+
+    cy.contains('button', 'Confirm Criteria').click();
+    cy.savePaymentPlan();
+    trackPaymentPlan(paymentPlan.name);
+
+    // Reopen and verify both criteria are present.
+    cy.openPaymentPlanForEditFromList(paymentPlan.code);
+    cy.contains('Educated level').should('exist');
+    cy.contains('Able bodied').should('exist');
+  });
 });

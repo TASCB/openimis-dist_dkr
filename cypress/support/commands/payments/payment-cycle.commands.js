@@ -63,12 +63,15 @@ export function registerPaymentCycleCommands() {
     cy.savePaymentCycle();
   });
 
-  Cypress.Commands.add('filterPaymentCycles', ({ code } = {}) => {
+  Cypress.Commands.add('filterPaymentCycles', ({ code, status } = {}) => {
     cy.visit('/front/paymentCycles');
     cy.contains('Payment Cycles');
 
     if (code !== undefined) {
       cy.enterMuiInput('Code', code);
+    }
+    if (status !== undefined) {
+      cy.chooseMuiSelect('Status', status);
     }
 
     cy.contains('button', 'Search').click();
