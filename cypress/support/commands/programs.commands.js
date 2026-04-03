@@ -104,7 +104,7 @@ export function registerProgramCommands() {
     });
   });
 
-  Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiaries, programType) => {
+  Cypress.Commands.add('createProgram', (programCode, programName, maxBeneficiaries, programType, schema) => {
     cy.visit('/front/benefitPlans');
     cy.get('[title="Create"] button').click();
 
@@ -131,6 +131,32 @@ export function registerProgramCommands() {
       .click();
     cy.contains('li[role="option"]', programType)
       .click();
+
+    if (schema) {
+      const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
+      // MUI multiline TextField renders a visible textarea + a hidden shadow textarea.
+      // Target the visible one (without aria-hidden) inside the Schema field.
+      cy.contains('label', 'Schema')
+        .siblings('.MuiInputBase-root')
+        .find('textarea:not([aria-hidden="true"])')
+        .clear({ force: true })
+        .type(schemaStr, { parseSpecialCharSequences: false, delay: 0, force: true });
+      // The ValidatedTextAreaInput debounces onChange by 500ms.  The adornment
+      // always has the `validIcon` class when there is no error — even when the
+      // value is empty.  The actual CheckOutlined SVG only renders once the
+      // debounced value is set AND the async backend validation passes.
+      // Wait for that SVG to appear inside the Schema field's adornment.
+      cy.contains('label', 'Schema')
+        .siblings('.MuiInputBase-root')
+        .find('.MuiInputAdornment-root svg', { timeout: 15000 })
+        .should('exist');
+      // Also confirm the adornment is in valid state (not showing the error icon).
+      cy.contains('label', 'Schema')
+        .siblings('.MuiInputBase-root')
+        .find('.MuiInputAdornment-root')
+        .should('have.attr', 'class')
+        .and('not.match', /invalidIcon/);
+    }
 
     cy.get('[title="Save changes"] button').click();
 

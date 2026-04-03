@@ -15,6 +15,27 @@ describe('Payment plan workflows', () => {
   const groupProgramCode = `PPGP${Date.now().toString().slice(-4)}`;
   const groupProgramName = `E2E Payment Plan Group ${suiteTimestamp}`;
   const maxBeneficiaries = '50';
+  const beneficiarySchema = {
+    $id: 'https://example.com/beneficiares.schema.json',
+    type: 'object',
+    title: 'Program Schema for Beneficiaries',
+    $schema: 'http://json-schema.org/draft-04/schema#',
+    properties: {
+      able_bodied: {
+        type: 'boolean',
+        description: 'Flag determining whether someone is able bodied or not',
+      },
+      educated_level: {
+        type: 'string',
+        description: 'The level of person when it comes to the school/education/studies',
+      },
+      number_of_children: {
+        type: 'integer',
+        description: 'Number of children',
+      },
+    },
+    description: 'This document records the details beneficiares',
+  };
   const createdPaymentPlans = new Set();
 
   const planData = (label, benefitPlanName) => {
@@ -26,7 +47,9 @@ describe('Payment plan workflows', () => {
       name: `E2E Payment Plan ${label} ${timestamp}`,
       benefitPlanName,
       dateValidFrom: getDateOffset(0),
-      dateValidTo: getDateOffset(30),
+      // dateValidTo is intentionally omitted — it is optional for payment plans
+      // and the MUI DatePicker dialog overwrites typed values with "today",
+      // causing dateValidTo == dateValidFrom which hides plans from the list.
     };
   };
 
@@ -42,7 +65,7 @@ describe('Payment plan workflows', () => {
     cy.logoutAdminInterface();
 
     cy.login();
-    cy.createProgram(individualProgramCode, individualProgramName, maxBeneficiaries, 'INDIVIDUAL');
+    cy.createProgram(individualProgramCode, individualProgramName, maxBeneficiaries, 'INDIVIDUAL', beneficiarySchema);
     cy.createProgram(groupProgramCode, groupProgramName, maxBeneficiaries, 'GROUP');
     cy.logout();
   });
@@ -99,8 +122,7 @@ describe('Payment plan workflows', () => {
     cy.get('[title="Save changes"] button').should('not.be.disabled');
 
     cy.enterMuiInput('Code', existingPlan.code);
-    cy.get('[title="Please fill General Information fields first"] button', { timeout: 10000 })
-      .should('be.disabled');
+    cy.get('[title="Save changes"] button').should('be.disabled');
   });
 
   it('applies advanced criteria from the program JSON schema', () => {

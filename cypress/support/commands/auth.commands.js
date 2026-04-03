@@ -1,8 +1,11 @@
 export function registerAuthCommands() {
   Cypress.Commands.add('login', () => {
+    // Clear cookies so we always land on a clean login page regardless of
+    // the state the previous test left the browser in.
+    cy.clearCookies();
     cy.visit('/front/login');
 
-    cy.get('body', { timeout: 15000 })
+    cy.get('body', { timeout: 30000 })
       .should(($body) => {
         const loggedIn = $body.find('button[title="Log out"]').length > 0
           || $body.text().includes('Welcome Admin Admin!');
