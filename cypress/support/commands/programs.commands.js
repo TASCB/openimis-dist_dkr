@@ -43,6 +43,9 @@ export function registerProgramCommands() {
 
     cy.enterMuiInput('Working Days', workingDays);
 
+    // Allow same beneficiary in multiple projects (avoids conflicts across E2E runs).
+    cy.chooseMuiSelect('Allow beneficiaries to enroll in multiple projects', 'Yes');
+
     cy.get('[title="Save"] button').click();
 
     // Wait for creation to complete
@@ -360,12 +363,14 @@ export function registerProgramCommands() {
     cy.openProgramForEditFromList(programName);
     cy.contains('button', 'Beneficiaries').click();
     cy.contains('button', status).click();
+    // The beneficiary searcher may not auto-execute — click Search to load results.
+    cy.contains('button', 'Search', { timeout: 15000 }).click();
 
     cy.get('@numEnrolled').then((count) => {
       if (entityName === 'Groups') {
-        cy.contains(`${count} Group Beneficiaries`);
+        cy.contains(`${count} Group Beneficiaries`, { timeout: 30000 });
       } else {
-        cy.contains(`${count} Beneficiaries`);
+        cy.contains(`${count} Beneficiaries`, { timeout: 30000 });
       }
     });
   });
@@ -406,5 +411,57 @@ export function registerProgramCommands() {
       programName, programCode, status,
       criterionField, criterionFilter, criterionValue, 'Groups',
     );
+  });
+
+  // Assign enrolled program beneficiaries to a project.
+  // projectPath: the URL path to the project detail page (captured via cy.url()).
+  Cypress.Commands.add('assignBeneficiariesToProject', (projectPath) => {
+    cy.visit(projectPath);
+    cy.contains('Beneficiaries Assigned', { timeout: 15000 });
+    cy.contains('button', 'Assign Beneficiaries').click();
+    cy.get('[role="progressbar"]').should('exist');
+    cy.get('[role="progressbar"]').should('not.exist');
+
+    // Select all candidates on the first page.
+    cy.get('[role="dialog"]', { timeout: 15000 }).should('be.visible');
+    // Click the select-all checkbox in the table header.
+    // Use first() — the dialog may render multiple header rows.
+    cy.get('[role="dialog"] th input[type="checkbox"]').first().click({ force: true });
+    // The Save button may be scrolled out of view when many rows are visible.
+    cy.get('[role="dialog"]').contains('button', 'Save').click({ force: true });
+    cy.get('[role="progressbar"]').should('exist');
+    cy.get('[role="progressbar"]').should('not.exist');
+  });
+
+  // Enter time entries for all enrolled beneficiaries on a project.
+  // Fills every visible day cell with the given percentComplete value.
+  Cypress.Commands.add('enterProjectTimeEntries', (projectPath, percentComplete) => {
+    cy.visit(projectPath);
+    cy.contains('Beneficiaries Assigned', { timeout: 15000 });
+    cy.contains('button', 'Enter time').click();
+
+    // Fill only the "Work Day" percentage inputs (not other numeric columns
+    // like "Children" that also appear in bulk-edit mode).
+    // PercentageEditField renders with placeholder="Work Day N".
+    cy.get('table input[placeholder^="Work Day"]').its('length').then((count) => {
+      for (let i = 0; i < count; i++) {
+        cy.get('table input[placeholder^="Work Day"]').eq(i)
+          .type(`{selectall}${String(percentComplete)}`, { force: true });
+      }
+    });
+
+    // Save time entries — the same button toggles to "Save" in edit mode.
+    cy.contains('button', 'Save').click();
+    cy.get('[role="progressbar"]', { timeout: 15000 }).should('not.exist');
+  });
+
+  // Change the status of a project (e.g. to COMPLETED).
+  Cypress.Commands.add('updateProjectStatus', (projectPath, status) => {
+    cy.visit(projectPath);
+    cy.contains('Beneficiaries Assigned', { timeout: 15000 });
+    cy.chooseMuiSelect('Status', status);
+    cy.get('[title="Save"] button').click();
+    cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('exist');
+    cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist');
   });
 }

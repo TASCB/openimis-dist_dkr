@@ -9,6 +9,19 @@ function openPaymentCycleRowAction(code) {
 }
 
 export function registerPaymentCycleCommands() {
+  Cypress.Commands.add('assertPaymentCycleDetailFields', ({
+    code,
+    startDate,
+    status,
+  }) => {
+    cy.assertMuiInput('Code', code);
+    cy.assertMuiInput('Start Date', startDate);
+    // End Date: MUI DatePicker in headless mode resets typed future dates to
+    // today, so the persisted value may differ.  Assert not-empty only.
+    cy.assertMuiInputNotEmpty('End Date');
+    cy.assertMuiSelectValue('Status', status);
+  });
+
   Cypress.Commands.add('openCreatePaymentCycle', () => {
     cy.visit('/front/paymentCycles');
     cy.contains('Payment Cycles');
@@ -38,13 +51,31 @@ export function registerPaymentCycleCommands() {
     }
   });
 
-  Cypress.Commands.add('savePaymentCycle', () => {
-    // Wait for code validation (async) before the save button becomes enabled.
+  // savePaymentCycle handles two distinct post-save flows:
+  //
+  // 1. Direct creation (PENDING, SUSPENDED, or ACTIVE with gql_check=false):
+  //    The server redirects to /paymentCycle/{UUID}.  We verify the UUID in
+  //    the URL to confirm the save actually succeeded — the old assertion
+  //    (url includes '/paymentCycles') always passed because the create form
+  //    URL already contains that substring.
+  //
+  // 2. Task workflow (ACTIVE with gql_check_payment_cycle=true):
+  //    A task-creation notification dialog appears.  Pass expectTaskDialog:
+  //    true to wait for and dismiss it.
+  Cypress.Commands.add('savePaymentCycle', ({ expectTaskDialog = false } = {}) => {
     cy.get('[title="Save changes"] button', { timeout: 15000 })
       .should('not.be.disabled')
       .click();
-    // After a successful create the backend redirects to the detail URL.
-    cy.url().should('match', /\/paymentCycles\/paymentCycle\/.+/, { timeout: 15000 });
+
+    if (expectTaskDialog) {
+      // ACTIVE + gql_check_payment_cycle=true: wait for the dialog, dismiss it.
+      cy.get('[role="dialog"]', { timeout: 15000 }).should('be.visible');
+      cy.get('[role="dialog"] .MuiDialogActions-root button').first().click();
+      cy.url().should('include', '/paymentCycles');
+    } else {
+      // Direct creation: verify redirect to the detail page (URL contains UUID).
+      cy.url({ timeout: 15000 }).should('match', /\/paymentCycle\/.+/);
+    }
   });
 
   Cypress.Commands.add('createPaymentCycle', ({
@@ -52,6 +83,7 @@ export function registerPaymentCycleCommands() {
     startDate,
     endDate,
     status = 'PENDING',
+    expectTaskDialog = false,
   }) => {
     cy.openCreatePaymentCycle();
     cy.fillPaymentCycleForm({
@@ -60,12 +92,21 @@ export function registerPaymentCycleCommands() {
       endDate,
       status,
     });
-    cy.savePaymentCycle();
+    cy.savePaymentCycle({ expectTaskDialog });
   });
 
   Cypress.Commands.add('filterPaymentCycles', ({ code, status } = {}) => {
     cy.visit('/front/paymentCycles');
-    cy.contains('Payment Cycles');
+    // Wait for the initial auto-fetch to complete so the filter inputs have
+    // stabilised in the DOM before we interact with them.  The Searcher table
+    // title renders "{count} Payment Cycles" only after the first API response.
+    cy.contains(/\d+ Payment Cycle/, { timeout: 15000 });
+    // After the initial fetch, concurrent requests (user profile, component
+    // re-fetches) can re-mount filter inputs mid-interaction, causing typed
+    // values to be lost or dropdowns to close.  A short wait lets these
+    // requests settle before we touch the DOM.
+    // eslint-disable-next-line cypress/no-unnecessary-waiting
+    cy.wait(1000);
 
     if (code !== undefined) {
       cy.enterMuiInput('Code', code);
@@ -75,15 +116,19 @@ export function registerPaymentCycleCommands() {
     }
 
     cy.contains('button', 'Search').click();
-    cy.contains('Payment Cycles');
+    // Wait for the search results to arrive — the counter re-renders with the
+    // filtered count after the API responds.
+    cy.contains(/\d+ Payment Cycle/, { timeout: 15000 });
   });
 
   Cypress.Commands.add('assertPaymentCycleRowVisible', ({ code, status }) => {
+    // Use a generous timeout: the search API response may arrive several
+    // seconds after filterPaymentCycles returns.
     if (code) {
-      cy.contains('table tbody tr', code).should('exist');
+      cy.contains('table tbody tr', code, { timeout: 15000 }).should('exist');
     }
     if (status) {
-      cy.contains('table tbody tr', status).should('exist');
+      cy.contains('table tbody tr', status, { timeout: 15000 }).should('exist');
     }
   });
 
@@ -91,6 +136,11 @@ export function registerPaymentCycleCommands() {
     if (code) {
       cy.contains('table tbody tr', code).should('not.exist');
     }
+  });
+
+  Cypress.Commands.add('resetPaymentCycleFilters', () => {
+    cy.contains('button', 'Reset').click({ force: true });
+    cy.contains(/\d+ Payment Cycle/, { timeout: 15000 });
   });
 
   Cypress.Commands.add('openPaymentCycleForViewFromList', (code) => {

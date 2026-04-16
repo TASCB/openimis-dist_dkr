@@ -23,13 +23,23 @@ describe('Payment cycle workflows', () => {
   // Payment cycles have no delete action in the UI, so created test records
   // accumulate in the database.  Use unique codes per run to avoid conflicts.
 
+  before(() => {
+    // Ensure a task group exists for PaymentCycleService tasks so ACTIVE
+    // cycle creation tasks are auto-assigned (ACCEPTED) and can be approved.
+    cy.login();
+    cy.ensurePaymentCycleTaskGroup();
+    cy.logout();
+  });
+
   beforeEach(() => {
     cy.login();
   });
 
   it('validates required fields before allowing payment cycle creation', () => {
     cy.openCreatePaymentCycle();
-    cy.get('[title="Please fill General Information fields first"] button')
+    // Payment cycle save tooltip is always "Save changes" (the module has no
+    // separate disabled-tooltip translation unlike payment plans).
+    cy.get('[title="Save changes"] button')
       .should('be.disabled');
   });
 
@@ -63,25 +73,26 @@ describe('Payment cycle workflows', () => {
 
     cy.createPaymentCycle(cycle);
     cy.openPaymentCycleForViewFromList(cycle.code);
-    cy.assertMuiInput('Code', cycle.code);
+    cy.assertPaymentCycleDetailFields(cycle);
   });
 
-  it('creates an ACTIVE payment cycle', () => {
+  it('creates an ACTIVE payment cycle via task approval and verifies all fields', () => {
     const cycle = cycleData();
 
-    cy.openCreatePaymentCycle();
-    cy.fillPaymentCycleForm({ ...cycle, status: 'ACTIVE' });
-    cy.savePaymentCycle();
+    // ACTIVE cycles route through the maker-checker task workflow:
+    // 1. Save creates a task and shows a notification dialog.
+    // 2. Approve the task via All Tasks.
+    // 3. After approval the cycle is created as ACTIVE.
+    cy.createPaymentCycle({ ...cycle, status: 'ACTIVE', expectTaskDialog: true });
+    cy.approveLatestPaymentCycleTask();
 
-    // Creating an ACTIVE cycle triggers a coreAlert dialog; dismiss it.
-    cy.get('body').then(($body) => {
-      if ($body.find('[role="dialog"]').length > 0) {
-        cy.get('[role="dialog"] .MuiDialogActions-root button').first().click();
-      }
-    });
-
+    // Verify the cycle now appears in the list.
     cy.filterPaymentCycles({ code: cycle.code });
     cy.assertPaymentCycleRowVisible({ code: cycle.code });
+
+    // Open detail page and verify all fields.
+    cy.openPaymentCycleForViewFromList(cycle.code);
+    cy.assertPaymentCycleDetailFields({ ...cycle, status: 'ACTIVE' });
   });
 
   it('creates a SUSPENDED payment cycle', () => {
@@ -100,11 +111,15 @@ describe('Payment cycle workflows', () => {
     cy.createPaymentCycle({ ...pendingCycle, status: 'PENDING' });
     cy.createPaymentCycle({ ...suspendedCycle, status: 'SUSPENDED' });
 
+    // Verify the status filter EXCLUDES cycles with a different status.
+    // This is the real test: filtering by PENDING must hide SUSPENDED cycles
+    // and vice versa.  The old test filtered by status+code simultaneously,
+    // which trivially passed without testing the status filter at all.
     cy.filterPaymentCycles({ status: 'PENDING' });
-    cy.assertPaymentCycleRowVisible({ code: pendingCycle.code });
+    cy.assertPaymentCycleRowNotVisible({ code: suspendedCycle.code });
 
     cy.filterPaymentCycles({ status: 'SUSPENDED' });
-    cy.assertPaymentCycleRowVisible({ code: suspendedCycle.code });
+    cy.assertPaymentCycleRowNotVisible({ code: pendingCycle.code });
   });
 
   it('shows read-only fields on the detail page', () => {
@@ -114,6 +129,9 @@ describe('Payment cycle workflows', () => {
     cy.openPaymentCycleForViewFromList(cycle.code);
 
     cy.assertMuiInputDisabled('Code', cycle.code);
+    cy.assertMuiInputDisabled('Start Date', cycle.startDate);
+    cy.assertMuiInputDisabled('End Date');
+    cy.assertMuiSelectValue('Status', 'PENDING');
   });
 
   it('blocks save when the code is changed to a duplicate value', () => {
@@ -142,5 +160,21 @@ describe('Payment cycle workflows', () => {
     // without a page refresh or delay.
     cy.filterPaymentCycles({ code: cycle.code });
     cy.assertPaymentCycleRowVisible({ code: cycle.code });
+  });
+
+  it('resets payment cycle filters and restores full list', () => {
+    cy.visit('/front/paymentCycles');
+    cy.contains(/\d+ Payment Cycle/, { timeout: 15000 });
+    // eslint-disable-next-line cypress/no-unnecessary-waiting
+    cy.wait(1000);
+
+    cy.enterMuiInput('Code', 'FAKE_CODE');
+
+    cy.resetPaymentCycleFilters();
+
+    cy.contains('label', 'Code')
+      .siblings('.MuiInputBase-root')
+      .find('input')
+      .should('have.value', '');
   });
 });

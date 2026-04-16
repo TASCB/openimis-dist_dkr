@@ -25,15 +25,17 @@ export function registerAuthCommands() {
         }
 
         cy.fixture('cred').then((cred) => {
+          // Use force:true — a "Session Expired" dialog may cover the
+          // login form after an admin-interface logout.
           cy.get('input[type="text"]', { timeout: 15000 })
             .first()
-            .clear()
-            .type(cred.username);
+            .clear({ force: true })
+            .type(cred.username, { force: true });
           cy.get('input[type="password"]', { timeout: 15000 })
             .first()
-            .clear()
-            .type(cred.password);
-          cy.get('button[type="submit"]').click();
+            .clear({ force: true })
+            .type(cred.password, { force: true });
+          cy.get('button[type="submit"]').click({ force: true });
           cy.contains('Welcome Admin Admin!', { timeout: 15000 }).should('be.visible');
         });
       });

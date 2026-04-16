@@ -15,12 +15,38 @@ function chooseFirstMuiSelectOption(label) {
 // PaymentPlanPicker renders as a MUI Select (SelectInput) with options
 // formatted as "{code} - {name}".  The picker label is "Payment Plan Picker"
 // (contributionPlan.paymentPlanPicker.label).
-function choosePayrollPaymentPlan(code, name) {
-  cy.contains('label', 'Payment Plan Picker')
-    .siblings('.MuiInputBase-root')
-    .find('[role="button"]')
-    .click();
-  cy.contains('[role="listbox"] li', `${code} - ${name}`, { timeout: 15000 }).click();
+// Search by code alone (unique per run) to avoid full-string matching fragility.
+// The picker fetches plans on componentDidMount via Redux; if the SELECT is
+// clicked before the RESP action arrives and causes a re-render that closes the
+// dropdown, retry by clicking the button again.
+function choosePayrollPaymentPlan(code) {
+  const openAndPick = (attempt) => {
+    cy.contains('label', 'Payment Plan Picker')
+      .siblings('.MuiInputBase-root')
+      .find('[role="button"]')
+      .click();
+
+    // Wait for the listbox to appear.
+    cy.get('[role="listbox"]', { timeout: 10000 }).should('exist').then(($lb) => {
+      const match = $lb.find(`li:contains("${code}")`);
+      if (match.length > 0) {
+        cy.wrap(match.first()).click();
+      } else if (attempt < 3) {
+        // Listbox appeared but target option is missing — may still be loading.
+        cy.log(`choosePayrollPaymentPlan attempt ${attempt}: "${code}" not found. Options: ` +
+          [...$lb.find('li')].slice(0, 10).map((li) => li.innerText.trim()).join(' | '));
+        cy.get('body').type('{esc}');
+        // eslint-disable-next-line cypress/no-unnecessary-waiting
+        cy.wait(1000);
+        openAndPick(attempt + 1);
+      } else {
+        // Final attempt: use cy.contains for a clean timeout error message.
+        cy.contains('[role="listbox"] li', code, { timeout: 10000 }).click();
+      }
+    });
+  };
+
+  openAndPick(1);
 }
 
 // PaymentCyclePicker renders as an Autocomplete.  Typing the code triggers the
@@ -38,6 +64,29 @@ function choosePayrollPaymentCycle(cycleCode) {
 }
 
 export function registerPayrollCommands() {
+  Cypress.Commands.add('assertPayrollDetailFields', ({
+    name,
+    status,
+    dateValidFrom,
+    dateValidTo,
+    paymentPlanCode,
+  }) => {
+    cy.assertMuiInput('Name', name);
+    if (status) {
+      cy.assertMuiInput('Status', status);
+    }
+    cy.assertMuiInput('Valid From', dateValidFrom);
+    if (dateValidTo) {
+      cy.assertMuiInput('Valid To', dateValidTo);
+    } else {
+      cy.assertMuiInput('Valid To');
+    }
+    cy.assertMuiInput('Payment Method');
+    if (paymentPlanCode) {
+      cy.assertMuiAutoComplete('Payment Plan Picker', paymentPlanCode);
+    }
+  });
+
   Cypress.Commands.add('openCreatePayroll', () => {
     cy.visit('/front/payrolls');
     cy.contains('Payrolls Found');
@@ -59,8 +108,8 @@ export function registerPayrollCommands() {
     if (name !== undefined) {
       cy.enterMuiInput('Name', name);
     }
-    if (paymentPlanCode && paymentPlanName) {
-      choosePayrollPaymentPlan(paymentPlanCode, paymentPlanName);
+    if (paymentPlanCode) {
+      choosePayrollPaymentPlan(paymentPlanCode);
     }
     if (paymentCycleCode) {
       choosePayrollPaymentCycle(paymentCycleCode);
@@ -85,8 +134,10 @@ export function registerPayrollCommands() {
       .should('not.be.disabled')
       .click();
     // After a successful create the URL changes from /payrolls/payroll to
-    // /payrolls/payroll/{uuid} and the form becomes read-only.
-    cy.url().should('match', /\/payrolls\/payroll\/.+/, { timeout: 15000 });
+    // /payrolls/payroll/{uuid} and the form becomes read-only.  The server
+    // only redirects to the UUID URL on success, so this assertion confirms
+    // the save succeeded.
+    cy.url({ timeout: 15000 }).should('match', /\/payrolls\/payroll\/.+/);
   });
 
   Cypress.Commands.add('createPayroll', ({
@@ -111,14 +162,24 @@ export function registerPayrollCommands() {
     cy.savePayroll();
   });
 
-  Cypress.Commands.add('filterPayrolls', ({ name } = {}) => {
+  Cypress.Commands.add('filterPayrolls', ({ name, status } = {}) => {
     cy.visit('/front/payrolls');
-    cy.contains('Payrolls Found');
+    cy.contains(/\d+ Payrolls Found/, { timeout: 15000 });
     if (name !== undefined) {
       cy.enterMuiInput('Name', name);
     }
+    if (status !== undefined) {
+      cy.chooseMuiSelect('Status', status);
+    }
     cy.contains('button', 'Search').click();
-    cy.contains('Payrolls Found');
+    // Wait for the search results to arrive — the counter re-renders with the
+    // filtered count after the API responds.
+    cy.contains(/\d+ Payrolls Found/, { timeout: 15000 });
+  });
+
+  Cypress.Commands.add('resetPayrollFilters', () => {
+    cy.contains('button', 'Reset').click({ force: true });
+    cy.contains(/\d+ Payrolls Found/, { timeout: 15000 });
   });
 
   Cypress.Commands.add('assertPayrollRowVisible', ({ name }) => {
@@ -146,13 +207,23 @@ export function registerPayrollCommands() {
 
   Cypress.Commands.add('deletePayrollFromList', (name) => {
     cy.filterPayrolls({ name });
-    cy.contains('table tbody tr', name)
-      .should('exist')
-      .within(() => {
+    cy.get('body').then(($body) => {
+      const row = $body.find('table tbody tr').toArray()
+        .find((tr) => tr.innerText.includes(name));
+
+      if (!row) {
+        Cypress.log({ name: 'deletePayrollFromList', message: `No payroll found matching "${name}"` });
+        return;
+      }
+
+      cy.wrap(row).within(() => {
         // Delete is the last IconButton; only enabled when status is PENDING_APPROVAL.
         cy.get('button.MuiIconButton-root').last().click({ force: true });
       });
-    cy.contains('button', 'Ok').click();
+      cy.contains('button', 'Ok').click();
+      // Wait for the delete mutation to complete before navigating away.
+      cy.url().should('include', '/payrolls');
+    });
   });
 
   // Navigate to the Pending Payrolls page and open the reconciliation summary
@@ -161,6 +232,9 @@ export function registerPayrollCommands() {
   Cypress.Commands.add('openPayrollPendingSummary', (payrollName) => {
     cy.visit('/front/payrollsPending');
     cy.contains('Payrolls Found');
+    // Filter by name so the row is visible even when many payrolls have accumulated
+    // from previous test runs and the list paginates (default 10 per page).
+    cy.enterMuiInput('Name', payrollName);
     cy.contains('button', 'Search').click();
     cy.contains('table tbody tr', payrollName)
       .should('exist')

@@ -14,16 +14,37 @@ export function registerUiCommands() {
       .find('[role="button"]')
       .click();
 
-    cy.contains('[role="listbox"] li', value).as('option');
-    cy.get('@option').click();
+    // Use force:true to skip actionability wait — MUI listbox options can
+    // disappear before Cypress finishes its actionability checks.
+    cy.contains('[role="listbox"] li', value).click({ force: true });
   });
 
   Cypress.Commands.add('assertMuiInput', (label, value, inputTag = 'input') => {
+    const input = cy.contains('label', label)
+      .siblings('.MuiInputBase-root')
+      .find(inputTag)
+      .should('be.visible');
+    if (value !== undefined) {
+      input.and('have.value', value);
+    }
+  });
+
+  Cypress.Commands.add('assertMuiInputNotEmpty', (label, inputTag = 'input') => {
     cy.contains('label', label)
       .siblings('.MuiInputBase-root')
       .find(inputTag)
       .should('be.visible')
-      .and('have.value', value);
+      .invoke('val')
+      .should('not.be.empty');
+  });
+
+  Cypress.Commands.add('assertMuiAutoComplete', (label, value) => {
+    cy.contains('label', label)
+      .siblings('.MuiInputBase-root')
+      .find('input')
+      .should('be.visible')
+      .invoke('val')
+      .should('include', value);
   });
 
   Cypress.Commands.add('assertMuiInputDisabled', (label, value = null, inputTag = 'input') => {
@@ -53,15 +74,21 @@ export function registerUiCommands() {
   });
 
   Cypress.Commands.add('chooseMuiAutocomplete', (label, value = null) => {
-    cy.contains('label', label)
+    const input = cy.contains('label', label)
       .siblings('.MuiInputBase-root')
-      .find('input')
-      .click();
+      .find('input');
+
+    if (value) {
+      // Type to trigger lazy-loaded search before selecting the matching option.
+      input.click().clear({ force: true }).type(value, { force: true });
+    } else {
+      input.click();
+    }
 
     const optionSelector = '[role="menu"] li, [role="presentation"] li, [role="listbox"] li, li[role="option"]';
 
     if (value) {
-      cy.contains(optionSelector, value).click();
+      cy.contains(optionSelector, value, { timeout: 15000 }).click();
       return;
     }
 
