@@ -1,4 +1,5 @@
 import { getTimestamp } from '../support/utils';
+import { TIMEOUTS } from '../support/constants';
 
 describe('Payroll workflows', () => {
   const suiteTimestamp = getTimestamp();
@@ -44,9 +45,6 @@ describe('Payroll workflows', () => {
     cy.setModuleConfig('fe-core', 'menu-config-sp.json');
     cy.setModuleConfig('social_protection', 'social-protection-config.json');
     cy.setModuleConfig('individual', 'individual-config-minimal.json');
-    // Remove any leftover payment_cycle config (e.g. gql_check_payment_cycle=false
-    // from the payment-cycle spec) so ACTIVE cycles route through the task workflow.
-    cy.deleteModuleConfig('payment_cycle');
     cy.logoutAdminInterface();
 
     cy.login();
@@ -59,9 +57,8 @@ describe('Payroll workflows', () => {
       dateValidTo: getDateOffset(365),
     });
 
-    // The PaymentCyclePicker in the payroll form shows only ACTIVE cycles.
-    // gql_check_payment_cycle (default: true) routes ACTIVE cycle creation
-    // through a maker-checker task workflow — the cycle is NOT immediately
+    // The PaymentCyclePicker in the payroll form shows only approved ACTIVE cycles.
+    // ACTIVE cycle creation is routed through through a maker-checker task workflow — the cycle is NOT immediately
     // ACTIVE; a task must be approved first.  We work around this by:
     //   1. Ensuring a task group exists that auto-assigns PaymentCycleService
     //      tasks (so the task status becomes ACCEPTED, not RECEIVED).
@@ -73,7 +70,6 @@ describe('Payroll workflows', () => {
       startDate: getDateOffset(0),
       endDate: getDateOffset(30),
       status: 'ACTIVE',
-      expectTaskDialog: true,
     });
     cy.approveLatestPaymentCycleTask();
     cy.logout();
@@ -98,8 +94,7 @@ describe('Payroll workflows', () => {
 
   it('validates required fields before allowing payroll creation', () => {
     cy.openCreatePayroll();
-    cy.get('[title="Save"] button')
-      .should('be.disabled');
+    cy.assertSaveDisabled();
   });
 
   it('creates a payroll successfully', () => {
@@ -117,8 +112,12 @@ describe('Payroll workflows', () => {
       name: payroll.name,
       status: 'PENDING APPROVAL',
       dateValidFrom: payroll.dateValidFrom,
+      dateValidTo: payroll.dateValidTo,
       paymentPlanCode: ppCode,
+      paymentCycleCode: cycleCode,
     });
+    // After creation the form is read-only.
+    cy.assertMuiInputDisabled('Name', payroll.name);
   });
 
   it('searches payrolls by name', () => {
@@ -150,7 +149,12 @@ describe('Payroll workflows', () => {
       name: payroll.name,
       status: 'PENDING APPROVAL',
       dateValidFrom: payroll.dateValidFrom,
+      dateValidTo: payroll.dateValidTo,
+      paymentPlanCode: ppCode,
+      paymentCycleCode: cycleCode,
     });
+    // Detail page should be read-only after creation.
+    cy.assertMuiInputDisabled('Name', payroll.name);
   });
 
   it('deletes a PENDING_APPROVAL payroll', () => {
@@ -169,12 +173,7 @@ describe('Payroll workflows', () => {
 
     cy.createPayroll(payroll);
     trackPayroll(payroll.name);
-
-    cy.visit('/front/payrollsPending');
-    cy.contains('Payrolls Found');
-    // Filter by name to avoid pagination issues from accumulated previous-run payrolls.
-    cy.enterMuiInput('Name', payroll.name);
-    cy.contains('button', 'Search').click();
+    cy.filterPayrolls({ name: payroll.name, visitPending: true });
     cy.assertPayrollRowVisible({ name: payroll.name });
   });
 
@@ -219,7 +218,9 @@ describe('Payroll workflows', () => {
     cy.visit('/front/payrollsPending');
     cy.contains('Payrolls Found');
     cy.enterMuiInput('Name', payroll.name);
+    cy.aliasGraphqlQuery('payroll(', 'pendingPayrollRefresh');
     cy.contains('button', 'Search').click();
+    cy.awaitSearcherRefresh('pendingPayrollRefresh');
     cy.assertPayrollRowVisible({ name: payroll.name });
 
     // Verify detail page shows correct associations.
@@ -228,8 +229,11 @@ describe('Payroll workflows', () => {
       name: payroll.name,
       status: 'PENDING APPROVAL',
       dateValidFrom: payroll.dateValidFrom,
+      dateValidTo: payroll.dateValidTo,
       paymentPlanCode: ppCode,
+      paymentCycleCode: cycleCode,
     });
+    cy.assertMuiInputDisabled('Name', payroll.name);
   });
 
   it('filters payrolls by status', () => {
@@ -250,7 +254,7 @@ describe('Payroll workflows', () => {
 
   it('resets payroll filters and restores full list', () => {
     cy.visit('/front/payrolls');
-    cy.contains(/\d+ Payrolls Found/, { timeout: 15000 });
+    cy.contains(/\d+ Payrolls Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
 
     cy.enterMuiInput('Name', 'FAKE_NAME');
 
@@ -307,7 +311,6 @@ describe('Timesheet calcrule payroll', () => {
     cy.setModuleConfig('fe-core', 'menu-config-sp.json');
     cy.setModuleConfig('social_protection', 'social-protection-config.json');
     cy.setModuleConfig('individual', 'individual-config-minimal.json');
-    cy.deleteModuleConfig('payment_cycle');
     // Use a unique activity name to avoid foreign key conflicts with old projects.
     cy.visit('/api/admin');
     cy.contains('a', 'Activities').click();
@@ -331,7 +334,6 @@ describe('Timesheet calcrule payroll', () => {
       'Able bodied', 'Exact', 'False',
     );
 
-    // 3. Create project under the program
     // 3. Create project under the program
     cy.createProject(
       tsProgramName, tsProjectName, tsActivityName,
@@ -365,7 +367,6 @@ describe('Timesheet calcrule payroll', () => {
       startDate: getDateOffset(0),
       endDate: getDateOffset(30),
       status: 'ACTIVE',
-      expectTaskDialog: true,
     });
     cy.approveLatestPaymentCycleTask();
 
@@ -411,7 +412,10 @@ describe('Timesheet calcrule payroll', () => {
       name: payrollName,
       status: 'PENDING APPROVAL',
       dateValidFrom: payroll.dateValidFrom,
+      dateValidTo: payroll.dateValidTo,
       paymentPlanCode: tsPpCode,
+      paymentCycleCode: tsCycleCode,
     });
+    cy.assertMuiInputDisabled('Name', payrollName);
   });
 });

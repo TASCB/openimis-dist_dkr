@@ -1,10 +1,11 @@
 import { getTimestamp } from '../support/utils';
+import { TIMEOUTS } from '../support/constants';
 
 describe('Payment point workflows', () => {
   const suiteTimestamp = getTimestamp();
   const createdPaymentPoints = new Set();
 
-  // Two locations in different regions for filter exclusion tests.
+  // Two locations in different regions drive the filter-exclusion tests.
   const locationA = {
     region: 'Region 1',
     district: 'District 1',
@@ -19,7 +20,7 @@ describe('Payment point workflows', () => {
   };
   const ppmUser = 'Admin';
 
-  // Pre-created points used by filter tests (created in before()).
+  // Created in before() and reused across filter tests.
   const filterPointA = {
     name: `PP FilterA ${suiteTimestamp}`.slice(0, 50),
     ...locationA,
@@ -43,7 +44,6 @@ describe('Payment point workflows', () => {
 
   before(() => {
     cy.login();
-    // Create two points in different regions for location filter tests.
     cy.createPaymentPoint(filterPointA);
     trackPoint(filterPointA.name);
     cy.createPaymentPoint(filterPointB);
@@ -63,15 +63,10 @@ describe('Payment point workflows', () => {
     cy.login();
   });
 
-  // --- Validation ---
-
   it('validates required fields before allowing save', () => {
     cy.openCreatePaymentPoint();
-    // Save Fab should be disabled when no fields are filled.
-    cy.get('button.MuiFab-root').should('be.disabled');
+    cy.assertSaveDisabled();
   });
-
-  // --- Create ---
 
   it('creates a payment point with full location hierarchy', () => {
     const point = pointData('Create');
@@ -93,8 +88,6 @@ describe('Payment point workflows', () => {
     cy.assertPaymentPointDetailFields(point);
   });
 
-  // --- Filter by Name ---
-
   it('filters by name toggles visibility', () => {
     cy.filterPaymentPoints({ name: filterPointA.name });
     cy.assertPaymentPointRowVisible({ name: filterPointA.name });
@@ -105,21 +98,15 @@ describe('Payment point workflows', () => {
     cy.assertPaymentPointRowNotVisible({ name: filterPointA.name });
   });
 
-  // --- Filter by PPM ---
-
   it('filters by Payment Point Manager', () => {
     cy.filterPaymentPoints({ ppm: ppmUser, name: filterPointA.name });
     cy.assertPaymentPointRowVisible({ name: filterPointA.name });
   });
 
-  // --- Filter by Location Hierarchy ---
-
   it('filters by Region excludes other regions', () => {
-    // Region 1 should show point A but not point B (Tahida).
     cy.filterPaymentPoints({ region: locationA.region });
     cy.assertPaymentPointRowNotVisible({ name: filterPointB.name });
 
-    // Tahida should show point B but not point A (Region 1).
     cy.filterPaymentPoints({ region: locationB.region });
     cy.assertPaymentPointRowNotVisible({ name: filterPointA.name });
   });
@@ -156,7 +143,6 @@ describe('Payment point workflows', () => {
   });
 
   it('wrong Region returns no matching test points', () => {
-    // Filter by Tahida region — point A (Region 1) should not appear.
     cy.filterPaymentPoints({
       region: locationB.region,
       name: filterPointA.name,
@@ -164,58 +150,43 @@ describe('Payment point workflows', () => {
     cy.assertPaymentPointRowNotVisible({ name: filterPointA.name });
   });
 
-  // --- Location Cascade ---
-
   it('selecting Region populates District options in filter', () => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: 15000 });
+    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    // Initial fetch briefly re-renders the filter card and detaches subjects.
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(1000);
 
-    // Select Region 1 — District dropdown should now have options.
     cy.chooseMuiSelect('Region', 'Region 1');
 
-    // Open the District dropdown and verify at least one option appears.
     cy.contains('label', 'District')
       .siblings('.MuiInputBase-root')
       .find('[role="button"]')
       .click();
-    cy.get('[role="listbox"] li', { timeout: 15000 })
+    cy.get('[role="listbox"] li', { timeout: TIMEOUTS.BACKEND_VALIDATION })
       .should('have.length.at.least', 1);
-    // Press Escape to close the dropdown without selecting.
     cy.get('body').type('{esc}');
   });
 
-  // --- Reset Filters ---
-
   it('Reset Filters clears all inputs and restores full list', () => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: 15000 });
+    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    // Initial fetch briefly re-renders the filter card and detaches subjects.
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(1000);
 
-    // Fill some filters.
     cy.enterMuiInput('Name', 'SomeFilterValue');
     cy.chooseMuiSelect('Region', 'Region 1');
 
-    // Click Reset Filters.
     cy.resetPaymentPointFilters();
 
-    // Name input should be cleared.
-    cy.contains('label', 'Name')
-      .siblings('.MuiInputBase-root')
-      .find('input')
-      .should('have.value', '');
+    cy.assertMuiInput('Name', '');
   });
-
-  // --- View ---
 
   it('views payment point details via eye icon from list', () => {
     cy.openPaymentPointForViewFromList(filterPointA.name);
     cy.assertPaymentPointDetailFields(filterPointA);
   });
-
-  // --- Edit ---
 
   it('edits name and verifies it persists after save', () => {
     const point = pointData('Edit');
@@ -225,16 +196,15 @@ describe('Payment point workflows', () => {
     trackPoint(updatedName);
 
     cy.openPaymentPointForViewFromList(point.name);
-    // Wait for the form data to fully load before editing — the fetch
-    // completes async and overwrites the input value via React state.
+    // The detail fetch overwrites inputs async — assert the loaded value
+    // before typing so the edit isn't clobbered.
     cy.assertMuiInput('Name', point.name);
     cy.enterMuiInput('Name', updatedName);
     cy.savePaymentPoint();
 
     createdPaymentPoints.delete(point.name);
 
-    // The update mutation fires async — back() returns to the list before
-    // the mutation completes.  Wait for the API to settle before searching.
+    // Save returns to the list before the update mutation completes; the
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(3000);
 
@@ -242,17 +212,13 @@ describe('Payment point workflows', () => {
     cy.assertPaymentPointDetailFields({ ...point, name: updatedName });
   });
 
-  // --- Delete ---
-
   it('deletes a payment point from the list', () => {
     const point = pointData('Delete');
 
     cy.createPaymentPoint(point);
-    // Not tracked in createdPaymentPoints — deleted below.
 
     cy.deletePaymentPointFromList(point.name);
 
-    // Should not appear in the default list after deletion.
     cy.filterPaymentPoints({ name: point.name });
     cy.assertPaymentPointRowNotVisible({ name: point.name });
   });
@@ -261,22 +227,17 @@ describe('Payment point workflows', () => {
     const point = pointData('DetailDel');
 
     cy.createPaymentPoint(point);
-    // Not tracked — deleted below.
 
     cy.openPaymentPointForViewFromList(point.name);
 
-    // Delete is an IconButton in the Form toolbar (not a Fab).
-    // The Form component wraps actions in a Tooltip; the tooltip text is
-    // formatMessage('tooltip.delete').  Click the IconButton directly.
+    // Detail-page toolbar exposes the Delete tooltip on the button itself
+    // (unlike row actions which have no [title] wrapper).
     cy.get('button.MuiIconButton-root[title*="elete"]', { timeout: 5000 })
       .click({ force: true });
 
-    // coreConfirm dialog — buttons are typically "Confirm" / "Cancel" or
-    // similar; use a broad selector.
     cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
     cy.get('[role="dialog"]').contains('button', /ok|confirm|yes/i).click();
 
-    // Verify it no longer appears in the list.
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(2000);
     cy.filterPaymentPoints({ name: point.name });

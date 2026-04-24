@@ -1,4 +1,5 @@
 import { getTodayFormatted } from '../helpers/date';
+import { TIMEOUTS } from '../constants';
 
 export function registerProgramCommands() {
   Cypress.Commands.add('deleteProject', (projectPath) => {
@@ -46,16 +47,11 @@ export function registerProgramCommands() {
     // Allow same beneficiary in multiple projects (avoids conflicts across E2E runs).
     cy.chooseMuiSelect('Allow beneficiaries to enroll in multiple projects', 'Yes');
 
-    cy.get('[title="Save"] button').click();
-
-    // Wait for creation to complete
-    cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist');
-    cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist');
-
-    // Check last journal message
-    cy.get('ul.MuiList-root li').first().click();
-    cy.contains(`Create project ${projectName}`).should('exist');
-    cy.contains('Failed to create').should('not.exist');
+    cy.saveAndAwaitJournal({
+      saveTitle: 'Save',
+      mutationLabel: `Create project ${projectName}`,
+      assertNoFail: true,
+    });
   });
 
   Cypress.Commands.add('deleteProgram', (programName) => {
@@ -144,42 +140,31 @@ export function registerProgramCommands() {
         .find('textarea:not([aria-hidden="true"])')
         .clear({ force: true })
         .type(schemaStr, { parseSpecialCharSequences: false, delay: 0, force: true });
-      // The ValidatedTextAreaInput debounces onChange by 500ms.  The adornment
-      // always has the `validIcon` class when there is no error — even when the
-      // value is empty.  The actual CheckOutlined SVG only renders once the
-      // debounced value is set AND the async backend validation passes.
-      // Wait for that SVG to appear inside the Schema field's adornment.
       cy.contains('label', 'Schema')
         .siblings('.MuiInputBase-root')
-        .find('.MuiInputAdornment-root svg', { timeout: 15000 })
+        .find('.MuiInputAdornment-root svg', { timeout: TIMEOUTS.BACKEND_VALIDATION })
         .should('exist');
-      // Also confirm the adornment is in valid state (not showing the error icon).
       cy.contains('label', 'Schema')
         .siblings('.MuiInputBase-root')
         .find('.MuiInputAdornment-root')
         .should('have.attr', 'class')
-        .and('not.match', /invalidIcon/);
+        .and('match', /validIcon/)
+        .and('not.match', /invalidIcon|pendingIcon/);
     }
 
-    cy.get('[title="Save changes"] button').click();
-
-    // Wait for creation to complete
-    cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist');
-    cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist');
-
-    // Check last journal message
-    cy.get('ul.MuiList-root li').first().click();
-    cy.contains('Create program').should('exist');
-    cy.contains('Failed to create').should('not.exist');
+    cy.saveAndAwaitJournal({
+      saveTitle: 'Save changes',
+      mutationLabel: 'Create program',
+      assertNoFail: true,
+    });
   });
 
   Cypress.Commands.add('openProgramForEditFromList', (programName) => {
-    cy.contains('tfoot', 'Rows Per Page');
-    // Search by name to ensure the program is visible regardless of pagination
+    cy.contains('tfoot', 'Rows Per Page', { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    // Search by name to ensure the program is visible regardless of pagination.
     cy.enterMuiInput('Name', programName);
     cy.contains('button', 'Search').click();
-    cy.contains('tfoot', 'Rows Per Page');
-    cy.contains('td', programName)
+    cy.contains('td', programName, { timeout: TIMEOUTS.BACKEND_VALIDATION })
       .parent('tr').within(() => {
         // click on edit button
         cy.get('a.MuiIconButton-root').click();
@@ -188,14 +173,9 @@ export function registerProgramCommands() {
   });
 
   Cypress.Commands.add('checkProgramUpdateCompleted', () => {
-    // Wait for update to complete
-    cy.get('ul.MuiList-root li div[role="progressbar"]').should('exist');
-    cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist');
-
-    // Check last journal message
-    cy.get('ul.MuiList-root li').first().click();
-    cy.contains('Update program').should('exist');
-    cy.contains('Failed to update').should('not.exist');
+    cy.waitForJournalProgress();
+    cy.assertJournalFirstEntryContains('Update program');
+    cy.assertJournalNoFail('Failed to update');
   });
 
   Cypress.Commands.add(
@@ -363,8 +343,13 @@ export function registerProgramCommands() {
     cy.openProgramForEditFromList(programName);
     cy.contains('button', 'Beneficiaries').click();
     cy.contains('button', status).click();
-    // The beneficiary searcher may not auto-execute — click Search to load results.
-    cy.contains('button', 'Search', { timeout: 15000 }).click();
+    // The beneficiary searcher may not auto-execute — click Search to load
+    // results.  Alias the round-trip so the post-click count assertion
+    // observes the REFRESHED title rather than the pre-search 0-count.
+    const beneAlias = entityName === 'Groups' ? 'groupBeneficiary(' : 'beneficiary(';
+    cy.aliasGraphqlQuery(beneAlias, 'beneficiarySearch');
+    cy.contains('button', 'Search', { timeout: TIMEOUTS.BACKEND_VALIDATION }).click();
+    cy.awaitSearcherRefresh('beneficiarySearch');
 
     cy.get('@numEnrolled').then((count) => {
       if (entityName === 'Groups') {
@@ -383,7 +368,7 @@ export function registerProgramCommands() {
     criterionFilter,
     criterionValue,
   ) => {
-    cy.ensureSufficientIndividuals(100);
+    cy.ensureSufficientIndividuals(120);
 
     cy.visit('/front/individuals');
     cy.contains('a', 'ENROLLMENT').click();
@@ -460,8 +445,7 @@ export function registerProgramCommands() {
     cy.visit(projectPath);
     cy.contains('Beneficiaries Assigned', { timeout: 15000 });
     cy.chooseMuiSelect('Status', status);
-    cy.get('[title="Save"] button').click();
-    cy.get('ul.MuiList-root li div[role="progressbar"]', { timeout: 15000 }).should('exist');
-    cy.get('ul.MuiList-root li div[role="progressbar"]').should('not.exist');
+
+    cy.saveAndAwaitJournal({ saveTitle: 'Save' });
   });
 }

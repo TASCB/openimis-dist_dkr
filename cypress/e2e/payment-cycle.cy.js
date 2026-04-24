@@ -1,3 +1,5 @@
+import { TIMEOUTS } from '../support/constants';
+
 describe('Payment cycle workflows', () => {
   const getDateOffset = (days) => {
     const date = new Date();
@@ -37,10 +39,7 @@ describe('Payment cycle workflows', () => {
 
   it('validates required fields before allowing payment cycle creation', () => {
     cy.openCreatePaymentCycle();
-    // Payment cycle save tooltip is always "Save changes" (the module has no
-    // separate disabled-tooltip translation unlike payment plans).
-    cy.get('[title="Save changes"] button')
-      .should('be.disabled');
+    cy.assertSaveDisabled();
   });
 
   it('creates a PENDING payment cycle successfully', () => {
@@ -83,14 +82,12 @@ describe('Payment cycle workflows', () => {
     // 1. Save creates a task and shows a notification dialog.
     // 2. Approve the task via All Tasks.
     // 3. After approval the cycle is created as ACTIVE.
-    cy.createPaymentCycle({ ...cycle, status: 'ACTIVE', expectTaskDialog: true });
+    cy.createPaymentCycle({ ...cycle, status: 'ACTIVE' });
     cy.approveLatestPaymentCycleTask();
 
-    // Verify the cycle now appears in the list.
     cy.filterPaymentCycles({ code: cycle.code });
     cy.assertPaymentCycleRowVisible({ code: cycle.code });
 
-    // Open detail page and verify all fields.
     cy.openPaymentCycleForViewFromList(cycle.code);
     cy.assertPaymentCycleDetailFields({ ...cycle, status: 'ACTIVE' });
   });
@@ -112,9 +109,6 @@ describe('Payment cycle workflows', () => {
     cy.createPaymentCycle({ ...suspendedCycle, status: 'SUSPENDED' });
 
     // Verify the status filter EXCLUDES cycles with a different status.
-    // This is the real test: filtering by PENDING must hide SUSPENDED cycles
-    // and vice versa.  The old test filtered by status+code simultaneously,
-    // which trivially passed without testing the status filter at all.
     cy.filterPaymentCycles({ status: 'PENDING' });
     cy.assertPaymentCycleRowNotVisible({ code: suspendedCycle.code });
 
@@ -142,13 +136,10 @@ describe('Payment cycle workflows', () => {
 
     cy.openCreatePaymentCycle();
     cy.fillPaymentCycleForm(newCycle);
-    // Save button should be enabled with a unique code.
-    cy.get('[title="Save changes"] button').should('not.be.disabled');
+    cy.assertSaveEnabled();
 
-    // Change the code to the existing cycle's code.
     cy.enterMuiInput('Code', existingCycle.code);
-    // The async code validation should disable save.
-    cy.get('[title="Save changes"] button', { timeout: 10000 }).should('be.disabled');
+    cy.assertSaveDisabled();
   });
 
   it('creates a payment cycle and immediately searches for it', () => {
@@ -156,15 +147,13 @@ describe('Payment cycle workflows', () => {
 
     cy.createPaymentCycle(cycle);
 
-    // Navigate to list and search right away — the cycle should be visible
-    // without a page refresh or delay.
     cy.filterPaymentCycles({ code: cycle.code });
     cy.assertPaymentCycleRowVisible({ code: cycle.code });
   });
 
   it('resets payment cycle filters and restores full list', () => {
     cy.visit('/front/paymentCycles');
-    cy.contains(/\d+ Payment Cycle/, { timeout: 15000 });
+    cy.contains(/\d+ Payment Cycle/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(1000);
 
@@ -172,9 +161,6 @@ describe('Payment cycle workflows', () => {
 
     cy.resetPaymentCycleFilters();
 
-    cy.contains('label', 'Code')
-      .siblings('.MuiInputBase-root')
-      .find('input')
-      .should('have.value', '');
+    cy.assertMuiInput('Code', '');
   });
 });

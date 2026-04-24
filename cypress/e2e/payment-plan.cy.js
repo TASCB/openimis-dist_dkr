@@ -1,4 +1,5 @@
 import { getTimestamp } from '../support/utils';
+import { CALC_RULES, TIMEOUTS } from '../support/constants';
 
 describe('Payment plan workflows', () => {
   const suiteTimestamp = getTimestamp();
@@ -49,10 +50,8 @@ describe('Payment plan workflows', () => {
       name: `E2E Payment Plan ${label} ${timestamp}`,
       benefitPlanName,
       dateValidFrom: getDateOffset(0),
-      calculationRule: 'Calculation rule: social protection',
-      // dateValidTo is omitted — null means "valid forever" and avoids the
-      // MUI DatePicker issue where typed dates are reset to today, causing
-      // plans to be hidden by the backend validity filter.
+      dateValidTo: getDateOffset(30),
+      calculationRule: CALC_RULES.SOCIAL_PROTECTION,
     };
   };
 
@@ -93,8 +92,7 @@ describe('Payment plan workflows', () => {
 
   it('validates required fields before allowing payment plan creation', () => {
     cy.openCreatePaymentPlan();
-    cy.get('[title="Please fill General Information fields first"] button')
-      .should('be.disabled');
+    cy.assertSaveDisabled();
   });
 
   it('creates a benefit-plan payment plan successfully', () => {
@@ -120,14 +118,13 @@ describe('Payment plan workflows', () => {
     cy.openCreatePaymentPlan();
     // Fill with a unique code first so the save button becomes enabled.
     cy.fillPaymentPlanForm({ ...duplicateCandidate, type: 'Benefit Plan' });
-    cy.get('[title="Save changes"] button').should('not.be.disabled');
+    cy.assertSaveEnabled();
 
     // Change code to an already-used value; ValidatedTextInput fires async validation.
     // The field-level error "paymentPlan.codeTaken" should appear after the API responds.
     cy.enterMuiInput('Code', existingPlan.code);
-    cy.contains('Payment plan code already exists', { timeout: 15000 }).should('be.visible');
-    // NOTE: this should also be taken as a common command to assert if save button is disabled
-    cy.get('[title="Please fill General Information fields first"] button').should('be.disabled');
+    cy.contains('Payment plan code already exists', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('be.visible');
+    cy.assertSaveDisabled();
     trackPaymentPlan(duplicateCandidate.name);
   });
 
@@ -149,9 +146,7 @@ describe('Payment plan workflows', () => {
     cy.contains('General Information').should('be.visible');
     cy.contains('Educated level').should('exist');
     cy.contains('Contains').should('exist');
-    // The criterion value is stored in an input field; use value assertion
-    // NOTE: check if assertInput or relevant command could be used here instead of directly querying the input
-    cy.get('input[value="prim"]').should('exist');
+    cy.assertMuiInput('Value', 'prim');
   });
 
   it('searches payment plans by code and by name', () => {
@@ -175,9 +170,9 @@ describe('Payment plan workflows', () => {
   it('edits all editable fields on an existing payment plan', () => {
     const paymentPlan = planData('Edit', individualProgramName);
     const updatedName = `${paymentPlan.name} Updated`;
-    const updatedCalcRule = 'Calculation rule: timesheet';
+    const updatedCalcRule = CALC_RULES.TIMESHEET;
     // MUI DatePicker resets typed dates to today, so use today for assertions.
-    const updatedDateValidFrom = getDateOffset(0);
+    const updatedDateValidFrom = getDateOffset(-45);
     const baseDayRate = '100';
 
     cy.createPaymentPlan(paymentPlan);
@@ -186,24 +181,12 @@ describe('Payment plan workflows', () => {
     cy.openPaymentPlanForEditFromList(paymentPlan.code);
     cy.contains('General Information').should('be.visible');
 
-    // NOTE: use a single call to fill the form with all updated values.
-    cy.fillPaymentPlanForm({ 
-      name: updatedName, 
-      dateValidFrom: updatedDateValidFrom, 
+    cy.fillPaymentPlanForm({
+      name: updatedName,
+      dateValidFrom: updatedDateValidFrom,
       calculationRule: updatedCalcRule,
-      calculationParams: { 'Base Day Rate': baseDayRate }, 
+      calculationParams: { 'Base Day Rate': baseDayRate },
     });
-
-    // Update Calculation Rule (triggers params re-render).
-    // Done last to avoid DOM detachment issues with other fields.
-    // cy.fillPaymentPlanForm({ calculationRule: updatedCalcRule });
-
-    // Fill the optional timesheet param if it appears.
-    // cy.get('body').then(($body) => {
-    //   if ($body.text().includes('Base Day Rate')) {
-    //     cy.enterMuiInput('Base Day Rate', baseDayRate);
-    //   }
-    // });
 
     cy.savePaymentPlan('Update Payment Plan');
 
@@ -212,7 +195,6 @@ describe('Payment plan workflows', () => {
     // Re-open and verify ALL fields were persisted.
     cy.openPaymentPlanForEditFromList(paymentPlan.code);
 
-    // NOTE: check all fields at once
     cy.assertPaymentPlanDetailFields({
       code: paymentPlan.code,
       name: updatedName,
@@ -222,19 +204,6 @@ describe('Payment plan workflows', () => {
       calculationParams: { 'Base Day Rate': baseDayRate },
     });
 
-    // Verify calcrule — if the backend supports updating it, it should show timesheet.
-    // Otherwise it remains as social protection.
-    // cy.contains('label', 'Calculation Rule')
-    //   .siblings('.MuiInputBase-root')
-    //   .find('[role="button"]')
-    //   .invoke('text')
-    //   .then((calcruleText) => {
-    //     if (calcruleText.includes('timesheet')) {
-    //       cy.log('Calcrule updated to timesheet successfully');
-    //     } else {
-    //       cy.log(`Calcrule not updated (shows: ${calcruleText}). Backend may not support calcrule change on update.`);
-    //     }
-    //   });
   });
 
   it('adds a new version of a payment plan', () => {
@@ -326,13 +295,14 @@ describe('Payment plan workflows', () => {
     cy.openPaymentPlanForEditFromList(paymentPlan.code);
     cy.contains('General Information').should('be.visible');
 
-    // NOTE: check if assertInput or relevant command could be used here instead of directly querying the inputs
-    cy.get('input[value="prim"]', { timeout: 15000 }).should('exist');
-    cy.get('input[value="bach"]', { timeout: 15000 }).should('exist');
+    // Two criterion rows render two separate "Value" inputs.  assertMuiInput
+    // targets the first by label, so for the multi-row case we assert on the
+    // raw inputs — any row matching either value is sufficient.
+    cy.get('input[value="prim"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('exist');
+    cy.get('input[value="bach"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('exist');
   });
 
   it('filters payment plans by date range', () => {
-    // NOTE: need to verify if this date filter is actually working or make a command to atleast use UI of calendar to select dates within current month
     const paymentPlan = planData('DateFilter', individualProgramName);
 
     cy.createPaymentPlan(paymentPlan);
@@ -363,24 +333,16 @@ describe('Payment plan workflows', () => {
 
     cy.resetPaymentPlanFilters();
 
-    // NOTE: check if assertInput or relevant command could be used here instead of directly querying the inputs
-    cy.contains('label', 'Code')
-      .siblings('.MuiInputBase-root')
-      .find('input')
-      .should('have.value', '');
-    cy.contains('label', 'Name')
-      .siblings('.MuiInputBase-root')
-      .find('input')
-      .should('have.value', '');
+    cy.assertMuiInput('Code', '');
+    cy.assertMuiInput('Name', '');
   });
 
   // --- Timesheet Calculation Rule ---
 
   it('creates a payment plan with timesheet calcrule and Base Day Rate', () => {
-    // NOTE: because these two calculation rule name strings are used at multiple places, it may be worth defining them as constants
     const paymentPlan = {
       ...planData('Timesheet BDR', timesheetProgramName),
-      calculationRule: 'Calculation rule: timesheet',
+      calculationRule: CALC_RULES.TIMESHEET,
       calculationParams: { 'Base Day Rate': '150' },
     };
 
@@ -392,7 +354,7 @@ describe('Payment plan workflows', () => {
       code: paymentPlan.code,
       name: paymentPlan.name,
       dateValidFrom: paymentPlan.dateValidFrom,
-      calculationRule: 'Calculation rule: timesheet',
+      calculationRule: CALC_RULES.TIMESHEET,
       benefitPlanName: timesheetProgramName,
       calculationParams: { 'Base Day Rate': '150' },
     });
@@ -401,7 +363,7 @@ describe('Payment plan workflows', () => {
   it('creates a timesheet payment plan without optional Base Day Rate', () => {
     const paymentPlan = {
       ...planData('Timesheet NoBDR', timesheetProgramName),
-      calculationRule: 'Calculation rule: timesheet',
+      calculationRule: CALC_RULES.TIMESHEET,
     };
 
     cy.createPaymentPlan(paymentPlan);
@@ -412,7 +374,7 @@ describe('Payment plan workflows', () => {
       code: paymentPlan.code,
       name: paymentPlan.name,
       dateValidFrom: paymentPlan.dateValidFrom,
-      calculationRule: 'Calculation rule: timesheet',
+      calculationRule: CALC_RULES.TIMESHEET,
       benefitPlanName: timesheetProgramName,
     });
   });

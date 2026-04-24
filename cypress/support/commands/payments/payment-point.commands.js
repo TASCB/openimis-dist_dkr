@@ -1,20 +1,7 @@
-// Region and District pickers render as AutoSuggestion (MUI Select).
-// Municipality and Village render as LocationPicker (MUI Autocomplete).
-const LOCATION_SELECT_LABELS = ['Region', 'District'];
-
-function chooseLocationLevel(label, value) {
-  if (LOCATION_SELECT_LABELS.includes(label)) {
-    cy.chooseMuiSelect(label, value);
-  } else {
-    cy.chooseMuiAutocomplete(label, value);
-  }
-}
+import { TIMEOUTS } from '../../constants';
 
 export function registerPaymentPointCommands() {
-  Cypress.Commands.add('assertPaymentPointDetailFields', ({
-    name,
-    ppm,
-  }) => {
+  Cypress.Commands.add('assertPaymentPointDetailFields', ({ name, ppm }) => {
     cy.assertMuiInput('Name', name);
     if (ppm) {
       cy.assertMuiAutoComplete('Payment Point Manager', ppm);
@@ -23,8 +10,8 @@ export function registerPaymentPointCommands() {
 
   Cypress.Commands.add('openCreatePaymentPoint', () => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: 15000 });
-    cy.get('button.MuiFab-root').click();
+    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.createClick();
     cy.url().should('include', '/paymentPoints/paymentPoint');
   });
 
@@ -36,19 +23,7 @@ export function registerPaymentPointCommands() {
     village,
     ppm,
   }) => {
-    // Location hierarchy must be filled top-down (cascade).
-    if (region) {
-      chooseLocationLevel('Region', region);
-    }
-    if (district) {
-      chooseLocationLevel('District', district);
-    }
-    if (municipality) {
-      chooseLocationLevel('Municipality', municipality);
-    }
-    if (village) {
-      chooseLocationLevel('Village', village);
-    }
+    cy.chooseLocation({ region, district, municipality, village });
     if (ppm) {
       cy.chooseMuiAutocomplete('Payment Point Manager', ppm);
     }
@@ -58,11 +33,8 @@ export function registerPaymentPointCommands() {
   });
 
   Cypress.Commands.add('savePaymentPoint', () => {
-    cy.get('button.MuiFab-root:not(.Mui-disabled)', { timeout: 15000 })
-      .first()
-      .click();
-    // After successful save the form redirects to the list page.
-    cy.contains(/\d+ Payment Points Found/, { timeout: 15000 });
+    cy.saveClick();
+    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
   });
 
   Cypress.Commands.add('createPaymentPoint', (data) => {
@@ -81,22 +53,9 @@ export function registerPaymentPointCommands() {
     showDeleted = false,
   } = {}) => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: 15000 });
-    // eslint-disable-next-line cypress/no-unnecessary-waiting
-    cy.wait(1000);
+    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
 
-    if (region) {
-      chooseLocationLevel('Region', region);
-    }
-    if (district) {
-      chooseLocationLevel('District', district);
-    }
-    if (municipality) {
-      chooseLocationLevel('Municipality', municipality);
-    }
-    if (village) {
-      chooseLocationLevel('Village', village);
-    }
+    cy.chooseLocation({ region, district, municipality, village });
     if (ppm) {
       cy.chooseMuiAutocomplete('Payment Point Manager', ppm);
     }
@@ -104,36 +63,33 @@ export function registerPaymentPointCommands() {
       cy.enterMuiInput('Name', name);
     }
     if (showDeleted) {
-      cy.contains('label', /show deleted/i)
-        .find('input[type="checkbox"]')
-        .check({ force: true });
+      cy.toggleMuiCheckbox('Show Deleted', true);
     }
 
+    cy.aliasGraphqlQuery('paymentPoint(', 'paymentPointSearch');
     cy.contains('button', 'Search').click();
-    cy.contains(/\d+ Payment Points Found/, { timeout: 15000 });
+    cy.awaitSearcherRefresh('paymentPointSearch', /\d+ Payment Points Found/);
   });
 
   Cypress.Commands.add('assertPaymentPointRowVisible', ({ name }) => {
-    if (name) {
-      cy.contains('table tbody tr', name, { timeout: 15000 }).should('exist');
-    }
+    cy.assertTableRowVisible([name]);
   });
 
   Cypress.Commands.add('assertPaymentPointRowNotVisible', ({ name }) => {
-    if (name) {
-      cy.contains('table tbody tr', name).should('not.exist');
-    }
+    cy.assertTableRowNotVisible([name]);
   });
 
+  // Payment-point row actions render as bare IconButtons without a [title]
+  // tooltip wrapper, so openRowAction/openRowActionIfPresent cannot match.
+  // Rows have exactly two IconButtons: View (first/eye) and Delete (last/trash).
   Cypress.Commands.add('openPaymentPointForViewFromList', (name) => {
     cy.filterPaymentPoints({ name });
     cy.contains('table tbody tr', name)
       .should('exist')
       .within(() => {
-        // Row has two IconButtons: View Details (first/eye) and Delete (last/trash).
         cy.get('button.MuiIconButton-root').first().click({ force: true });
       });
-    cy.url({ timeout: 15000 }).should('include', '/paymentPoints/paymentPoint');
+    cy.url({ timeout: TIMEOUTS.BACKEND_VALIDATION }).should('include', '/paymentPoints/paymentPoint');
   });
 
   Cypress.Commands.add('deletePaymentPointFromList', (name) => {
@@ -159,7 +115,7 @@ export function registerPaymentPointCommands() {
   });
 
   Cypress.Commands.add('resetPaymentPointFilters', () => {
-    cy.contains('button', 'Reset').click({ force: true });
-    cy.contains(/\d+ Payment Points Found/, { timeout: 15000 });
+    cy.aliasGraphqlQuery('paymentPoint(', 'paymentPointReset');
+    cy.resetSearcherFilters(/\d+ Payment Points Found/, 'paymentPointReset');
   });
 }
