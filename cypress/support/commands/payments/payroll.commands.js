@@ -1,42 +1,5 @@
 import { TIMEOUTS } from '../../constants';
 
-// PaymentPlanPicker renders as a MUI Select (SelectInput) with options
-// formatted as "{code} - {name}".  The picker fetches plans on
-// componentDidMount via Redux; if the SELECT is clicked before the RESP
-// action arrives and causes a re-render that closes the dropdown, we retry.
-//
-// NOTE(decision): we tried `cy.chooseMuiSelect('Payment Plan Picker', code)`
-// to piggy-back on the generic helper, but the listbox re-render closes the
-// dropdown between `.click()` and `cy.contains()` which surfaces as
-// intermittent timeouts in CI.  The retry loop below handles that case
-// explicitly.  If the underlying data-fetch timing ever changes, revisit.
-function choosePayrollPaymentPlan(code) {
-  const openAndPick = (attempt) => {
-    cy.contains('label', 'Payment Plan Picker')
-      .siblings('.MuiInputBase-root')
-      .find('[role="button"]')
-      .click();
-
-    cy.get('[role="listbox"]', { timeout: 10000 }).should('exist').then(($lb) => {
-      const match = $lb.find(`li:contains("${code}")`);
-      if (match.length > 0) {
-        cy.wrap(match.first()).click();
-      } else if (attempt < 3) {
-        cy.log(`choosePayrollPaymentPlan attempt ${attempt}: "${code}" not found. Options: ` +
-          [...$lb.find('li')].slice(0, 10).map((li) => li.innerText.trim()).join(' | '));
-        cy.get('body').type('{esc}');
-        // eslint-disable-next-line cypress/no-unnecessary-waiting
-        cy.wait(1000);
-        openAndPick(attempt + 1);
-      } else {
-        cy.contains('[role="listbox"] li', code, { timeout: 10000 }).click();
-      }
-    });
-  };
-
-  openAndPick(1);
-}
-
 export function registerPayrollCommands() {
   Cypress.Commands.add('assertPayrollDetailFields', ({
     name,
