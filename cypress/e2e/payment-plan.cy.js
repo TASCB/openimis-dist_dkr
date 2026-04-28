@@ -41,13 +41,14 @@ describe('Payment plan workflows', () => {
   };
   const createdPaymentPlans = new Set();
 
-  const planData = (label, benefitPlanName) => {
+  const planData = (label, benefitPlanCode, benefitPlanName) => {
     const timestamp = getTimestamp();
     const uniqueCodePart = `${Date.now().toString().slice(-5)}${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
 
     return {
       code: `E2EPP${uniqueCodePart}`,
       name: `E2E Payment Plan ${label} ${timestamp}`,
+      benefitPlanCode,
       benefitPlanName,
       dateValidFrom: getDateOffset(0),
       dateValidTo: getDateOffset(30),
@@ -96,7 +97,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('creates a benefit-plan payment plan successfully', () => {
-    const paymentPlan = planData('Create', individualProgramName);
+    const paymentPlan = planData('Create', individualProgramCode, individualProgramName);
 
     cy.createPaymentPlan(paymentPlan);
     trackPaymentPlan(paymentPlan.name);
@@ -109,8 +110,8 @@ describe('Payment plan workflows', () => {
   });
   
   it('shows validation error when duplicate code is entered', () => {
-    const existingPlan = planData('Duplicate Base', individualProgramName);
-    const duplicateCandidate = planData('Duplicate Candidate', individualProgramName);
+    const existingPlan = planData('Duplicate Base', individualProgramCode, individualProgramName);
+    const duplicateCandidate = planData('Duplicate Candidate', individualProgramCode, individualProgramName);
 
     cy.createPaymentPlan(existingPlan);
     trackPaymentPlan(existingPlan.name);
@@ -129,7 +130,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('applies advanced criteria from the program JSON schema', () => {
-    const paymentPlan = planData('Advanced Criteria', individualProgramName);
+    const paymentPlan = planData('Advanced Criteria', individualProgramCode, individualProgramName);
 
     cy.createPaymentPlan({
       ...paymentPlan,
@@ -150,8 +151,8 @@ describe('Payment plan workflows', () => {
   });
 
   it('searches payment plans by code and by name', () => {
-    const targetPlan = planData('Search Target', individualProgramName);
-    const otherPlan = planData('Search Other', individualProgramName);
+    const targetPlan = planData('Search Target', individualProgramCode, individualProgramName);
+    const otherPlan = planData('Search Other', individualProgramCode, individualProgramName);
 
     cy.createPaymentPlan(targetPlan);
     cy.createPaymentPlan(otherPlan);
@@ -168,7 +169,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('edits all editable fields on an existing payment plan', () => {
-    const paymentPlan = planData('Edit', individualProgramName);
+    const paymentPlan = planData('Edit', individualProgramCode, individualProgramName);
     const updatedName = `${paymentPlan.name} Updated`;
     const updatedCalcRule = CALC_RULES.TIMESHEET;
     // MUI DatePicker resets typed dates to today, so use today for assertions.
@@ -199,6 +200,7 @@ describe('Payment plan workflows', () => {
       code: paymentPlan.code,
       name: updatedName,
       dateValidFrom: updatedDateValidFrom,
+      benefitPlanCode: individualProgramCode,
       benefitPlanName: individualProgramName,
       calculationRule: updatedCalcRule,
       calculationParams: { 'Base Day Rate': baseDayRate },
@@ -207,7 +209,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('adds a new version of a payment plan', () => {
-    const paymentPlan = planData('Version Base', individualProgramName);
+    const paymentPlan = planData('Version Base', individualProgramCode, individualProgramName);
     const replacementName = `${paymentPlan.name} V2`;
 
     cy.createPaymentPlan(paymentPlan);
@@ -228,7 +230,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('deletes a payment plan and shows it only in deleted history', () => {
-    const paymentPlan = planData('Delete', individualProgramName);
+    const paymentPlan = planData('Delete', individualProgramCode, individualProgramName);
 
     cy.createPaymentPlan(paymentPlan);
 
@@ -246,7 +248,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('creates a benefit-plan payment plan for a group-profile program', () => {
-    const paymentPlan = planData('Group Smoke', groupProgramName);
+    const paymentPlan = planData('Group Smoke', groupProgramCode, groupProgramName);
 
     cy.createPaymentPlan(paymentPlan);
     trackPaymentPlan(paymentPlan.name);
@@ -259,8 +261,8 @@ describe('Payment plan workflows', () => {
   });
 
   it('filters payment plans by benefit plan / program', () => {
-    const planA = planData('Filter BP A', individualProgramName);
-    const planB = planData('Filter BP B', groupProgramName);
+    const planA = planData('Filter BP A', individualProgramCode, individualProgramName);
+    const planB = planData('Filter BP B', groupProgramCode, groupProgramName);
 
     cy.createPaymentPlan(planA);
     cy.createPaymentPlan(planB);
@@ -280,7 +282,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('applies multiple advanced criteria rows', () => {
-    const paymentPlan = planData('Multi Criteria', individualProgramName);
+    const paymentPlan = planData('Multi Criteria', individualProgramCode, individualProgramName);
 
     cy.createPaymentPlan({
       ...paymentPlan,
@@ -303,7 +305,7 @@ describe('Payment plan workflows', () => {
   });
 
   it('filters payment plans by date range', () => {
-    const paymentPlan = planData('DateFilter', individualProgramName);
+    const paymentPlan = planData('DateFilter', individualProgramCode, individualProgramName);
 
     cy.createPaymentPlan(paymentPlan);
     trackPaymentPlan(paymentPlan.name);
@@ -337,11 +339,35 @@ describe('Payment plan workflows', () => {
     cy.assertMuiInput('Name', '');
   });
 
+  it('renders pagination controls and respects Rows Per Page selection', () => {
+    cy.visit('/front/paymentPlans');
+    cy.contains('Payment Plans Found');
+    cy.get('table tbody tr', { timeout: TIMEOUTS.BACKEND_VALIDATION })
+      .should('have.length.at.least', 1);
+
+    // MUI TablePagination exposes the Rows Per Page dropdown, row-range
+    // label, and prev/next arrows — assert each is rendered.
+    cy.get('.MuiTablePagination-root').should('exist');
+    cy.contains(/Rows Per Page/i).should('be.visible');
+    cy.get('.MuiTablePagination-actions button').should('have.length.at.least', 2);
+
+    // Changing the page size triggers a refetch; alias so we can await it,
+    // then assert the first visible size option renders and is clickable.
+    cy.aliasGraphqlQuery('paymentPlan(', 'paymentPlanPageSize');
+    cy.get('.MuiTablePagination-select').first().click();
+    cy.get('[role="listbox"] li')
+      .should('have.length.at.least', 2)
+      .last()
+      .click();
+    cy.awaitSearcherRefresh('paymentPlanPageSize', /Payment Plans Found/);
+    cy.get('table tbody tr').should('have.length.at.least', 1);
+  });
+
   // --- Timesheet Calculation Rule ---
 
   it('creates a payment plan with timesheet calcrule and Base Day Rate', () => {
     const paymentPlan = {
-      ...planData('Timesheet BDR', timesheetProgramName),
+      ...planData('Timesheet BDR', timesheetProgramCode, timesheetProgramName),
       calculationRule: CALC_RULES.TIMESHEET,
       calculationParams: { 'Base Day Rate': '150' },
     };
@@ -355,6 +381,7 @@ describe('Payment plan workflows', () => {
       name: paymentPlan.name,
       dateValidFrom: paymentPlan.dateValidFrom,
       calculationRule: CALC_RULES.TIMESHEET,
+      benefitPlanCode: timesheetProgramCode,
       benefitPlanName: timesheetProgramName,
       calculationParams: { 'Base Day Rate': '150' },
     });
@@ -362,7 +389,7 @@ describe('Payment plan workflows', () => {
 
   it('creates a timesheet payment plan without optional Base Day Rate', () => {
     const paymentPlan = {
-      ...planData('Timesheet NoBDR', timesheetProgramName),
+      ...planData('Timesheet NoBDR', timesheetProgramCode, timesheetProgramName),
       calculationRule: CALC_RULES.TIMESHEET,
     };
 
@@ -375,6 +402,7 @@ describe('Payment plan workflows', () => {
       name: paymentPlan.name,
       dateValidFrom: paymentPlan.dateValidFrom,
       calculationRule: CALC_RULES.TIMESHEET,
+      benefitPlanCode: timesheetProgramCode,
       benefitPlanName: timesheetProgramName,
     });
   });

@@ -65,6 +65,7 @@ export function registerPaymentPlanCommands() {
     dateValidFrom,
     dateValidTo,
     calculationRule,
+    benefitPlanCode,
     benefitPlanName,
     calculationParams,
   }) => {
@@ -78,7 +79,13 @@ export function registerPaymentPlanCommands() {
     if (calculationRule) {
       cy.assertMuiSelectValue('Calculation Rule', calculationRule);
     }
-    if (benefitPlanName) {
+    // Prefer code over name for the Program picker assertion: the picker's
+    // displayed value is `${code} ${name}`, and the program name field is
+    // prone to typing races during create.  The 8-char code is a reliable
+    // identity check.
+    if (benefitPlanCode) {
+      cy.assertMuiAutoComplete('Program', benefitPlanCode);
+    } else if (benefitPlanName) {
       cy.assertMuiAutoComplete('Program', benefitPlanName);
     }
     if (calculationParams) {
@@ -102,6 +109,7 @@ export function registerPaymentPlanCommands() {
     name,
     calculationRule,
     calculationParams,
+    benefitPlanCode,
     benefitPlanName,
     dateValidFrom,
     dateValidTo,
@@ -124,7 +132,12 @@ export function registerPaymentPlanCommands() {
         cy.chooseFirstMuiSelect('Calculation Rule');
       }
     }
-    if (benefitPlanName) {
+    // Prefer searching by program code: the 8-char unique code is reliably
+    // matched by the BenefitPlanPicker server-side OR-search and avoids
+    // ambiguity if the program name was mangled during program creation.
+    if (benefitPlanCode) {
+      cy.chooseMuiAutocomplete('Program', benefitPlanCode);
+    } else if (benefitPlanName) {
       cy.chooseMuiAutocomplete('Program', benefitPlanName);
     }
     if (dateValidFrom) {
@@ -155,6 +168,7 @@ export function registerPaymentPlanCommands() {
     name,
     calculationRule,
     calculationParams,
+    benefitPlanCode,
     benefitPlanName,
     dateValidFrom,
     dateValidTo,
@@ -167,6 +181,7 @@ export function registerPaymentPlanCommands() {
       name,
       calculationRule,
       calculationParams,
+      benefitPlanCode,
       benefitPlanName,
       dateValidFrom,
       dateValidTo,

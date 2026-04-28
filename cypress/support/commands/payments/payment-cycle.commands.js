@@ -93,7 +93,12 @@ export function registerPaymentCycleCommands() {
     cy.savePaymentCycle();
   });
 
-  Cypress.Commands.add('filterPaymentCycles', ({ code, status } = {}) => {
+  Cypress.Commands.add('filterPaymentCycles', ({
+    code,
+    status,
+    dateFrom,
+    dateTo,
+  } = {}) => {
     cy.visit('/front/paymentCycles');
     cy.contains(/\d+ Payment Cycle/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
     // eslint-disable-next-line cypress/no-unnecessary-waiting
@@ -104,6 +109,15 @@ export function registerPaymentCycleCommands() {
     }
     if (status !== undefined) {
       cy.chooseMuiSelect('Status', status);
+    }
+    // Searcher filter labels are "Date From" / "Date To" (translation
+    // `paymentCycle.label.dateValidFrom` / `dateValidTo`) — distinct from
+    // the create-form labels "Start Date" / "End Date".
+    if (dateFrom) {
+      cy.enterDateInput('Date From', dateFrom);
+    }
+    if (dateTo) {
+      cy.enterDateInput('Date To', dateTo);
     }
 
     cy.aliasGraphqlQuery('paymentCycle(', 'paymentCycleSearch');

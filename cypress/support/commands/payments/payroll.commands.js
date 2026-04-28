@@ -1,5 +1,38 @@
 import { TIMEOUTS } from '../../constants';
 
+// Header order for the reconciliation CSV — matches the BE template exactly
+// Editing or reordering these breaks the upload.
+const RECONCILIATION_CSV_HEADERS = [
+  'Payroll Name',
+  'Payroll Status',
+  'First Name',
+  'Last Name',
+  'Date of Birth',
+  'Code',
+  'Status',
+  'Amount',
+  'Type',
+  'Receipt',
+  'Paid',
+];
+
+function parseReconciliationCsvText(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/^﻿/, '').split('\n')
+    .filter((line) => line.length > 0);
+  const headers = lines[0].split(',');
+  const rows = lines.slice(1).map((line) => {
+    const cells = line.split(',');
+    return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']));
+  });
+  return { headers, rows };
+}
+
+function buildReconciliationCsvText(rows) {
+  const headerLine = RECONCILIATION_CSV_HEADERS.join(',');
+  const bodyLines = rows.map((r) => RECONCILIATION_CSV_HEADERS.map((h) => r[h] ?? '').join(','));
+  return `${[headerLine, ...bodyLines].join('\n')}\n`;
+}
+
 export function registerPayrollCommands() {
   Cypress.Commands.add('assertPayrollDetailFields', ({
     name,
@@ -194,9 +227,169 @@ export function registerPayrollCommands() {
     });
   });
 
-  // Navigate to the Pending Payrolls page and open the reconciliation summary
-  // dialog for a specific payroll.  The dialog is triggered by the
-  // "View Reconciliation Summary" button (second action column in the pending list).
+  // Approve the `accept_payroll` task that's emitted at payroll-creation time,
+  // advancing the payroll PENDING_APPROVAL → APPROVE_FOR_PAYMENT.  The task
+  // group must already exist (callers should invoke ensurePermissiveTaskGroup
+  // in their before() hook).
+  Cypress.Commands.add('approveAcceptPayrollTask', (payrollName) => {
+    cy.ensurePermissiveTaskGroup();
+    cy.approveTaskFromList({ containsText: ['accept_payroll', payrollName] });
+  });
+
+  // Approve the `payroll_reconciliation` task emitted when an operator clicks
+  // "Approve and Close" on the Approve-for-Payment Summary dialog.  Note:
+  // a CSV upload alone does NOT create this task — it only flips per-row
+  // BenefitConsumption statuses.  The task + status transition to RECONCILED
+  // are triggered exclusively by the close-payroll button.
+  Cypress.Commands.add('approvePayrollReconciliationTask', (payrollName) => {
+    cy.ensurePermissiveTaskGroup();
+    cy.approveTaskFromList({ containsText: ['payroll_reconciliation', payrollName] });
+  });
+
+  // Open the Approve-for-Payment Summary dialog from the Approved Payrolls
+  // list, click "Approve and Close" to fire the close_payroll mutation, then
+  // wait for the dialog to dismiss.  The button is disabled until at least
+  // one beneficiary is reconciled (StrategyOfflinePayment) or approved
+  // (StrategyOnlinePayment).
+  Cypress.Commands.add('approveAndClosePayrollFromSummary', (payrollName) => {
+    cy.visit('/front/payrollsApproved');
+    cy.contains(/\d+ Payrolls Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.enterMuiInput('Name', payrollName);
+    cy.aliasGraphqlQuery('payroll(', 'approvedPayrollSearch_close');
+    cy.contains('button', 'Search').click();
+    cy.awaitSearcherRefresh('approvedPayrollSearch_close');
+
+    cy.contains('table tbody tr', payrollName)
+      .should('exist')
+      .within(() => {
+        cy.contains('button', /View Reconciliation Summary/i).click({ force: true });
+      });
+
+    cy.get('[role="dialog"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('be.visible');
+    cy.get('[role="dialog"]')
+      .contains('button', /Approve and Close/i)
+      .should('not.be.disabled')
+      .click({ force: true });
+
+    // The mutation closes the dialog on success.
+    cy.get('[role="dialog"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('not.exist');
+  });
+
+  // Synchronous CSV parser/builder exposed as cy commands for chaining.
+  Cypress.Commands.add('parseReconciliationCsv', (csvText) => cy.wrap(parseReconciliationCsvText(csvText)));
+
+  Cypress.Commands.add('buildReconciliationCsv', (rows) => cy.wrap(buildReconciliationCsvText(rows)));
+
+  // UI-driven download of the reconciliation template.  Must be invoked while
+  // the payroll detail page is open (the Download button lives in PayrollTab).
+  // Returns `{ headers, rows, csvText }` via the chained subject.  The button
+  // triggers `fetch()` for the blob download — we intercept the underlying
+  // request and read the response body so the test does not depend on the
+  // host-OS download folder behaviour in headless Electron.
+  Cypress.Commands.add('downloadReconciliationFromUI', () => {
+    cy.intercept('GET', '/api/payroll/csv_reconciliation/*').as('downloadRecCsv');
+    cy.contains('button', /^Download$/i).click({ force: true });
+    return cy.wait('@downloadRecCsv', { timeout: TIMEOUTS.BACKEND_VALIDATION }).then(({ response }) => {
+      expect(response.statusCode).to.eq(200);
+      const csvText = typeof response.body === 'string'
+        ? response.body
+        : new TextDecoder().decode(response.body);
+      const { headers, rows } = parseReconciliationCsvText(csvText);
+      return cy.wrap({ headers, rows, csvText });
+    });
+  });
+
+  // UI-driven upload via the "Upload Payment Data" dialog (only rendered on
+  // the payroll detail page when paymentMethod === 'StrategyOfflinePayment'
+  // — at the API layer reconciliation works for any method, but the FE button
+  // is gated, so callers must use the offline strategy).  Writes the edited
+  // CSV under cypress/fixtures/_generated/ so cypress-file-upload can resolve
+  // the relative fixture path, opens the dialog, attaches the file, submits,
+  // waits for the POST, and then reloads (the dialog only closes itself; the
+  // page does not refetch automatically).
+  Cypress.Commands.add('uploadReconciliationFromUI', (payrollName, csvText) => {
+    const safeName = payrollName.replace(/[^a-z0-9]+/gi, '_');
+    // Each upload must have a unique file name — the BE rejects re-uploads
+    // with `File already exists at the specified path` when payroll_id +
+    // file_name collide.  The timestamp suffix makes successive uploads
+    // (e.g. partial → full reconciliation in a single test) succeed.
+    const fixtureRel = `_generated/recon_${safeName}_${Date.now()}.csv`;
+    cy.writeFile(`cypress/fixtures/${fixtureRel}`, csvText);
+
+    cy.contains('button', /Upload Payment Data/i).click({ force: true });
+    cy.get('[role="dialog"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('be.visible');
+    cy.get('[role="dialog"] input[type="file"]').attachFile(fixtureRel);
+
+    cy.intercept('POST', '/api/payroll/csv_reconciliation/*').as('uploadRecCsv');
+    cy.get('[role="dialog"]')
+      .contains('button', /Upload Payment Data/i)
+      .should('not.be.disabled')
+      .click({ force: true });
+    cy.wait('@uploadRecCsv', { timeout: TIMEOUTS.BACKEND_VALIDATION }).then((interception) => {
+      const status = interception?.response?.statusCode;
+      if (status >= 400) {
+        // Surface the BE error so a 500 doesn't fail with just "expected N to be below 400".
+        const body = interception?.response?.body;
+        const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+        throw new Error(`uploadReconciliation: BE returned ${status} — body: ${bodyStr?.slice(0, 1000)}`);
+      }
+      expect(status, 'upload status code').to.be.lt(400);
+    });
+
+    cy.get('[role="dialog"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('not.exist');
+    cy.reload();
+  });
+
+  // Open the "View Reconciliation Summary" dialog from the Approved Payrolls
+  // list and assert the three Paper-card values.  Pass `{ selected, total,
+  // totalAmount, totalDelivered }`.  All four are required; pass null/undefined
+  // to skip a specific assertion.
+  Cypress.Commands.add('assertReconciliationSummary', (payrollName, expected) => {
+    cy.visit('/front/payrollsApproved');
+    cy.contains(/\d+ Payrolls Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.enterMuiInput('Name', payrollName);
+    cy.aliasGraphqlQuery('payroll(', 'approvedPayrollSearch');
+    cy.contains('button', 'Search').click();
+    cy.awaitSearcherRefresh('approvedPayrollSearch');
+
+    cy.contains('table tbody tr', payrollName)
+      .should('exist')
+      .within(() => {
+        cy.contains('button', /View Reconciliation Summary/i).click({ force: true });
+      });
+
+    cy.get('[role="dialog"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('be.visible');
+    cy.get('[role="dialog"]').contains('View Reconciliation Summary:').should('exist');
+    cy.get('[role="dialog"]').contains(payrollName).should('exist');
+
+    // The summary cards finish populating once the payroll fetch resolves.
+    // Re-scope each assertion to `[role="dialog"]` to dodge stale-DOM errors
+    // when the dialog content re-renders between the title check and the
+    // card checks.
+    if (expected.selected !== undefined && expected.total !== undefined) {
+      cy.get('[role="dialog"]', { timeout: TIMEOUTS.BACKEND_VALIDATION })
+        .contains(`${expected.selected} of ${expected.total}`, { timeout: TIMEOUTS.BACKEND_VALIDATION })
+        .should('exist');
+    }
+    if (expected.totalAmount !== undefined) {
+      cy.get('[role="dialog"]')
+        .contains('Total Amount for Invoice')
+        .closest('div.MuiPaper-root')
+        .contains(String(expected.totalAmount))
+        .should('exist');
+    }
+    if (expected.totalDelivered !== undefined) {
+      cy.get('[role="dialog"]')
+        .contains('Total Delivered Per Reconciliation')
+        .closest('div.MuiPaper-root')
+        .contains(String(expected.totalDelivered))
+        .should('exist');
+    }
+
+    cy.get('[role="dialog"]').contains('button', /Close/i).click();
+    cy.get('[role="dialog"]').should('not.exist');
+  });
+
   Cypress.Commands.add('openPayrollPendingSummary', (payrollName) => {
     cy.visit('/front/payrollsPending');
     cy.contains('Payrolls Found');

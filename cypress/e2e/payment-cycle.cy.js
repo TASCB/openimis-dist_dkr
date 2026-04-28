@@ -163,4 +163,55 @@ describe('Payment cycle workflows', () => {
 
     cy.assertMuiInput('Code', '');
   });
+
+  it('filters payment cycles by date range (Date From / Date To)', () => {
+    const cycle = cycleData();
+
+    cy.createPaymentCycle(cycle);
+
+    // A "Date From" filter in the far future must exclude this cycle (its
+    // startDate is today).
+    cy.filterPaymentCycles({ code: cycle.code, dateFrom: getDateOffset(365) });
+    cy.assertPaymentCycleRowNotVisible({ code: cycle.code });
+
+    // A "Date From" filter in the past includes it.
+    cy.filterPaymentCycles({ code: cycle.code, dateFrom: getDateOffset(-365) });
+    cy.assertPaymentCycleRowVisible({ code: cycle.code });
+  });
+
+  it('payroll form Payment Cycle picker excludes non-ACTIVE cycles', () => {
+    // The PaymentCyclePicker used on the payroll create form queries
+    // paymentCycle with `status: ACTIVE`, so a PENDING cycle must never
+    // appear in its autocomplete options.
+    const pendingCycle = cycleData();
+
+    cy.createPaymentCycle(pendingCycle);
+
+    cy.visit('/front/payrolls');
+    cy.contains('Payrolls Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.createClick();
+    cy.url({ timeout: TIMEOUTS.BACKEND_VALIDATION }).should('include', '/payrolls/payroll');
+
+    // The cycle picker fires a GraphQL query with `status: ACTIVE` on input
+    // change — alias it so we can await the response before asserting.
+    cy.aliasGraphqlQuery('paymentCycle(', 'cyclePickerFetch');
+
+    cy.contains('label', 'Payment Cycle', { timeout: TIMEOUTS.BACKEND_VALIDATION })
+      .siblings('.MuiInputBase-root')
+      .find('input')
+      .click({ force: true })
+      .clear({ force: true })
+      .type(pendingCycle.code, { force: true });
+    cy.wait('@cyclePickerFetch', { timeout: TIMEOUTS.BACKEND_VALIDATION });
+
+    // The PENDING cycle code must not appear in any autocomplete listbox option.
+    cy.get('body').then(($body) => {
+      const options = $body.find('[role="listbox"] li, [role="presentation"] li').toArray();
+      const pendingVisible = options.some((li) => li.innerText.includes(pendingCycle.code));
+      expect(
+        pendingVisible,
+        `PENDING cycle ${pendingCycle.code} must not appear in the ACTIVE-filtered picker`,
+      ).to.equal(false);
+    });
+  });
 });

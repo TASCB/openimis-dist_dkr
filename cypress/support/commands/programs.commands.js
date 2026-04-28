@@ -440,6 +440,57 @@ export function registerProgramCommands() {
     cy.get('[role="progressbar"]', { timeout: 15000 }).should('not.exist');
   });
 
+  // Per-beneficiary variant of enterProjectTimeEntries.  Accepts a
+  // `daysByText` map of `{ "<row identifier>": [percentDay1, percentDay2, …] }`
+  // where the key is any text (e.g. full name "Andrew Walker") whose tokens
+  // collectively appear within the row's innerText.  Tokens are matched
+  // case-insensitively and may be in any order — robust to first/last names
+  // rendered in separate <td> cells (where row.text() has no separator).
+  Cypress.Commands.add('enterProjectTimeEntriesPerBeneficiary', (projectPath, daysByText) => {
+    cy.visit(projectPath);
+    cy.contains('Beneficiaries Assigned', { timeout: 15000 });
+    cy.contains('button', 'Enter time').click();
+
+    // The bulk-edit table paginates (default 10 per page).  The exact cohort
+    // we want to address must all be on one page, so set pageSize as high as
+    // the picker allows; if no large option exists this is a no-op.
+    cy.get('body').then(($body) => {
+      const $select = $body.find('.MuiTablePagination-select').first();
+      if (!$select.length) return;
+      cy.wrap($select).click({ force: true });
+      cy.get('[role="listbox"] li')
+        .last()
+        .click({ force: true });
+    });
+
+    cy.get('table tbody tr', { timeout: 15000 }).should('have.length.at.least', 1);
+
+    // Re-query row + input on every type to avoid detached-DOM errors when
+    // the table re-renders between cell edits.  Slower but stable.
+    Object.entries(daysByText).forEach(([key, dayPercents]) => {
+      const tokens = key.split(/\s+/).filter(Boolean).map((t) => t.toLowerCase());
+      dayPercents.forEach((percent, idx) => {
+        cy.get('table tbody tr').then(($rows) => {
+          const matched = $rows.toArray().find((tr) => {
+            const text = (tr.innerText || tr.textContent || '').toLowerCase();
+            return tokens.every((t) => text.includes(t));
+          });
+          if (!matched) {
+            throw new Error(`enterProjectTimeEntriesPerBeneficiary: no row matched "${key}"`);
+          }
+          cy.wrap(matched)
+            .find('input[placeholder^="Work Day"]')
+            .eq(idx)
+            .type(`{selectall}${String(percent)}`, { force: true });
+        });
+      });
+    });
+
+    cy.contains('button', 'Save').click();
+    cy.waitForJournalProgress();
+    cy.assertJournalNoFail();
+  });
+
   // Change the status of a project (e.g. to COMPLETED).
   Cypress.Commands.add('updateProjectStatus', (projectPath, status) => {
     cy.visit(projectPath);
