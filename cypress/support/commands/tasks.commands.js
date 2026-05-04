@@ -60,7 +60,7 @@ export function registerTaskCommands() {
     ensureTaskGroup({ code: taskGroupName, taskSources: ['PaymentCycleService'] });
   });
 
-  // Generic maker-checker approval driver.  Navigates to /front/allTasks,
+  // Generic maker-checker approval driver.  Navigates to /front/AllTasks,
   // finds the first row where every string in `containsText` appears in the
   // row's innerText, opens the task detail page, assigns the task to the
   // given task group (default 'any'), saves, then scrolls to the bottom and
@@ -84,12 +84,12 @@ export function registerTaskCommands() {
     const MAX_ATTEMPTS = 3;
     const INTERVAL_MS = 10000;
     // Longest text is the most-specific identifier (e.g. payroll name vs action type)
-    // and is used as the Entity filter value on /front/allTasks to avoid scanning
+    // and is used as the Entity filter value on /front/AllTasks to avoid scanning
     // pages of accumulated tasks.
     const filterText = [...texts].sort((a, b) => b.length - a.length)[0];
 
     const waitForTaskRow = (attempt = 1) => {
-      cy.visit('/front/allTasks');
+      cy.visit('/front/AllTasks');
       cy.contains('Tasks Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
       cy.enterMuiInput('Entity', filterText);
       cy.aliasGraphqlQuery('task(', `taskSearch_${attempt}`);
@@ -155,7 +155,7 @@ export function registerTaskCommands() {
 
   // Approve the most recently created PaymentCycleService task.
   Cypress.Commands.add('approveLatestPaymentCycleTask', () => {
-    cy.visit('/front/allTasks');
+    cy.visit('/front/AllTasks');
     cy.contains('Tasks Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
 
     cy.contains('table tbody tr', 'PaymentCycleService', { timeout: TIMEOUTS.BACKEND_VALIDATION })

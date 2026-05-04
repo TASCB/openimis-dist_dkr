@@ -205,8 +205,8 @@ export function registerPayrollCommands() {
 
   // Full payroll delete flow: maker step (list → Delete → Ok) produces a
   // `payroll_delete` task; checker step assigns the permissive 'any' group.
-  // The Ok click must be scoped to the confirmation dialog — an unscoped
-  // cy.contains('button', 'Ok') 
+  // The Ok click must be scoped to the confirmation dialog because an
+  // unscoped cy.contains('button', 'Ok') can match the wrong button.
   Cypress.Commands.add('deletePayrollFromList', (name) => {
     cy.filterPayrolls({ name });
     cy.openRowActionIfPresent(name, 'Delete').then((found) => {
