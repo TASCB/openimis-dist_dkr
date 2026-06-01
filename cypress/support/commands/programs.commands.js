@@ -301,6 +301,9 @@ export function registerProgramCommands() {
     cy.ensurePermissiveTaskGroup();
     cy.visit('/front/AllTasks');
     cy.contains('tfoot', 'Rows Per Page');
+
+    cy.aliasGraphqlQuery('task(id:', 'importTaskDetail');
+
     cy.get('tr')
       .filter((_, tr) => (
         Cypress.$(tr).find('td:contains("import_valid_items")').length > 0
@@ -315,7 +318,9 @@ export function registerProgramCommands() {
         cy.get('button[title="View details"]').click();
       });
 
-    cy.contains('Import Valid Items Task');
+    cy.url({ timeout: TIMEOUTS.BACKEND_VALIDATION }).should('include', '/tasks/task/');
+    cy.awaitSearcherRefresh('importTaskDetail');
+    cy.contains('Import Valid Items Task', { timeout: TIMEOUTS.BACKEND_VALIDATION });
     cy.chooseMuiAutocomplete('Task Group', 'any');
     cy.get('[title="Save changes"] button').click();
 
@@ -407,8 +412,20 @@ export function registerProgramCommands() {
     cy.get('[role="progressbar"]').should('exist');
     cy.get('[role="progressbar"]').should('not.exist');
 
-    // Select all candidates on the first page.
     cy.get('[role="dialog"]', { timeout: 15000 }).should('be.visible');
+
+    // Bump the dialog's pagination to its largest option BEFORE select-all,
+    // so every enrolled candidate is on the visible page and gets included.
+    // Without this, select-all only checks the first page (default 10 rows),
+    // leaving the rest unassigned and producing partial cohorts downstream.
+    cy.get('[role="dialog"]').then(($dialog) => {
+      const $select = $dialog.find('.MuiTablePagination-select').first();
+      if ($select.length) {
+        cy.wrap($select).click({ force: true });
+        cy.get('[role="listbox"] li').last().click({ force: true });
+      }
+    });
+
     // Click the select-all checkbox in the table header.
     // Use first() — the dialog may render multiple header rows.
     cy.get('[role="dialog"] th input[type="checkbox"]').first().click({ force: true });
@@ -416,6 +433,53 @@ export function registerProgramCommands() {
     cy.get('[role="dialog"]').contains('button', 'Save').click({ force: true });
     cy.get('[role="progressbar"]').should('exist');
     cy.get('[role="progressbar"]').should('not.exist');
+  });
+
+  // Read the names of beneficiaries currently assigned to a project, by
+  // scraping the project's "Enter time" bulk-edit table.  This is the
+  // ground truth for who's in the project — distinct from the enrolled set
+  // (which may be larger if assignment dialog pagination clipped some).
+  // Returns a string array of "First Last" names in row order.
+  //
+  // Cohort-driven tests should drive their day-pattern map from THIS list,
+  // not from a beneficiary GraphQL probe — names from the probe may not
+  // appear in the project table if assignment is partial.
+  Cypress.Commands.add('getProjectAssignedBeneficiaryNames', (projectPath) => {
+    cy.visit(projectPath);
+    cy.contains('Beneficiaries Assigned', { timeout: 15000 });
+    cy.contains('button', 'Enter time').click();
+
+    // Set pageSize to max so we read every row.
+    cy.get('body').then(($body) => {
+      const $select = $body.find('.MuiTablePagination-select').first();
+      if (!$select.length) return;
+      cy.wrap($select).click({ force: true });
+      cy.get('[role="listbox"] li').last().click({ force: true });
+    });
+
+    cy.get('table tbody tr', { timeout: 15000 }).should('have.length.at.least', 1);
+
+    // Scope to the bulk-edit "Enter time" table specifically — anchor
+    // via its unique "Work Day" inputs and walk up to the enclosing
+    // <table>. Without this scoping, unrelated tables on the page (the
+    // upper summary "Beneficiaries Assigned" table) get included and
+    // each beneficiary appears twice in the returned name list.
+    return cy.get('input[placeholder^="Work Day"]', { timeout: 15000 })
+      .first()
+      .closest('table')
+      .find('tbody tr')
+      .then(($rows) => {
+      const names = $rows.toArray().map((tr) => {
+        // Take the first TWO alphabetic-only tokens from the row's
+        // innerText.  This survives table layouts where the name cells
+        // may be preceded by a checkbox/select column or interleaved
+        // with numeric cells (e.g. district code, day-percent values).
+        const text = (tr.innerText || tr.textContent || '').trim();
+        const tokens = text.split(/\s+/).filter((t) => /^[A-Za-z]+$/.test(t));
+        return tokens.slice(0, 2).join(' ');
+      }).filter((n) => n.split(/\s+/).length === 2);
+      return cy.wrap(names);
+    });
   });
 
   // Enter time entries for all enrolled beneficiaries on a project.

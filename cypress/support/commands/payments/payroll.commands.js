@@ -208,16 +208,74 @@ export function registerPayrollCommands() {
   // The Ok click must be scoped to the confirmation dialog because an
   // unscoped cy.contains('button', 'Ok') can match the wrong button.
   Cypress.Commands.add('deletePayrollFromList', (name) => {
+    // Intercept the deletePayroll mutation so we can detect when the Ok
+    // click fails to actually fire it.  PayrollSearcher gates the mutation
+    // on a `confirmed` coreConfirm reducer that can stay truthy across
+    // sequential deletes in the same session — when it does, clicking Ok
+    // dismisses the dialog without triggering deletePayrolls. 
+    cy.intercept('POST', '/api/graphql', (req) => {
+      if (typeof req.body?.query === 'string' && req.body.query.includes('deletePayroll')) {
+        req.alias = 'deletePayrollMut';
+      }
+    });
+
+    const clickDeleteAndOk = () => {
+      cy.openRowActionIfPresent(name, 'Delete').then((found) => {
+        if (!found) {
+          Cypress.log({ name: 'deletePayrollFromList', message: `No payroll found matching "${name}"` });
+          return;
+        }
+        cy.get('[role="dialog"]', { timeout: 5000 }).should('be.visible');
+        cy.get('[role="dialog"]').contains('button', /^(ok|confirm|yes)$/i).click();
+      });
+    };
+
     cy.filterPayrolls({ name });
-    cy.openRowActionIfPresent(name, 'Delete').then((found) => {
-      if (!found) {
-        Cypress.log({ name: 'deletePayrollFromList', message: `No payroll found matching "${name}"` });
+    clickDeleteAndOk();
+
+    // Give the mutation a normal-load window to fire.  If it doesn't,
+    // PayrollSearcher's reducer is stale — reload the list and retry once.
+    // eslint-disable-next-line cypress/no-unnecessary-waiting
+    cy.wait(2500);
+    cy.get('@deletePayrollMut.all').then((interceptions) => {
+      if (interceptions.length > 0) return;
+      // Row may already be gone (no-op cleanup).
+      cy.get('body').then(($body) => {
+        const rowExists = $body.find('table tbody tr').toArray()
+          .some((tr) => tr.innerText.includes(name));
+        if (!rowExists) {
+          Cypress.log({
+            name: 'deletePayrollFromList',
+            message: `Row for "${name}" already gone; skipping retry.`,
+          });
+          return;
+        }
+        cy.log(`deletePayroll mutation did not fire for "${name}" — reloading PayrollSearcher and retrying once`);
+        cy.filterPayrolls({ name });
+        clickDeleteAndOk();
+        cy.wait('@deletePayrollMut', { timeout: 10000 });
+      });
+    });
+
+    // After the mutation has fired (or the row was already gone), proceed
+    // with the checker step.  Guard with the row-existence check so a
+    // no-op cleanup short-circuits cleanly.
+    cy.get('body').then(($body) => {
+      const rowGone = !$body.find('table tbody tr').toArray()
+        .some((tr) => tr.innerText.includes(name));
+      // The page may have been navigated away during the retry visit —
+      // re-anchor before checking.
+      if (rowGone && !$body.find('table').length) return;
+    });
+
+    cy.url().should('include', '/payrolls');
+
+    // Skip task approval if no mutation ever fired (row was already gone).
+    cy.get('@deletePayrollMut.all').then((interceptions) => {
+      if (interceptions.length === 0) {
+        Cypress.log({ name: 'deletePayrollFromList', message: `No deletePayroll mutation fired for "${name}" — skipping task approval` });
         return;
       }
-      cy.get('[role="dialog"]', { timeout: 5000 }).should('be.visible');
-      cy.get('[role="dialog"]').contains('button', /^(ok|confirm|yes)$/i).click();
-      cy.url().should('include', '/payrolls');
-
       cy.ensurePermissiveTaskGroup();
       // The delete-click produces a `payroll_delete` task that must be
       // approved to finalise the deletion.  The `accept_payroll` task

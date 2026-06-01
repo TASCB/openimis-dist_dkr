@@ -133,12 +133,32 @@ export function registerTaskCommands() {
     const taskGroupInput = () => cy.contains('label', 'Task Group')
       .siblings('.MuiInputBase-root')
       .find('input');
-    taskGroupInput().click({ force: true });
-    taskGroupInput().clear({ force: true });
-    taskGroupInput().type(groupCode, { force: true });
-    cy.get('[role="listbox"] li', { timeout: TIMEOUTS.BACKEND_VALIDATION })
-      .contains(groupCode)
-      .click({ force: true });
+    const optionSelector = '[role="listbox"] li, [role="presentation"] li, li[role="option"]';
+    const MAX_GROUP_PICK_ATTEMPTS = 3;
+
+    const pickTaskGroup = (attempt = 1) => {
+      taskGroupInput().click({ force: true });
+      taskGroupInput().clear({ force: true });
+      taskGroupInput().type(groupCode, { force: true });
+      cy.contains(optionSelector, groupCode, { timeout: TIMEOUTS.BACKEND_VALIDATION })
+        .click({ force: true });
+      taskGroupInput().invoke('val').then((val) => {
+        if (val === groupCode) return;
+        if (attempt >= MAX_GROUP_PICK_ATTEMPTS) {
+          throw new Error(
+            `approveTaskFromList: Task Group autocomplete did not accept "${groupCode}" `
+            + `after ${MAX_GROUP_PICK_ATTEMPTS} attempts (final value="${val}")`,
+          );
+        }
+        Cypress.log({
+          name: 'pickTaskGroup',
+          message: `value="${val}" after click; retrying (attempt ${attempt + 1}/${MAX_GROUP_PICK_ATTEMPTS})`,
+        });
+        pickTaskGroup(attempt + 1);
+      });
+    };
+
+    pickTaskGroup();
     taskGroupInput().should('have.value', groupCode);
 
     // Save changes — the task form's Save FAB. After save, task transitions

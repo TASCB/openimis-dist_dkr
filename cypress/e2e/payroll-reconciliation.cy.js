@@ -304,17 +304,26 @@ describe('Payroll reconciliation — timesheet (base-day-rate calcrule)', () => 
 
     cy.then(() => cy.assignBeneficiariesToProject(projectPath));
 
-    // Capture enrolled names (sorted) so we can map cohort indices → beneficiaries.
-    getEnrolledBeneficiaryNames(programCode).then((names) => {
-      expect(names.length, 'enrolled count').to.be.gte(DAY_PATTERNS.length + 1);
-      activeNames = names.slice(0, DAY_PATTERNS.length);
+    // Read names directly from the project's bulk-edit table — the same
+    // grid that enterProjectTimeEntriesPerBeneficiary will iterate.  This
+    // guarantees every key in our daysByText map is a row that exists in
+    // that table (no enrolled-but-unassigned mismatch, no FE-vs-BE name
+    // ordering surprises).
+    cy.then(() => cy.getProjectAssignedBeneficiaryNames(projectPath)).then((names) => {
+      // The fixture seeds duplicate first/last name pairs across distinct
+      // individuals, and the bulk-edit grid lists every assigned record.
+      // Drive the cohort off UNIQUE names so each pattern lands on a
+      // separate person and shows up as its own CSV row.
+      const uniqueNames = [...new Set(names)];
+      expect(uniqueNames.length, 'unique assigned count').to.be.gte(DAY_PATTERNS.length + 1);
+      activeNames = uniqueNames.slice(0, DAY_PATTERNS.length);
       expectedAmountByName = Object.fromEntries(
         activeNames.map((name, i) => [name, expectedAmount(DAY_PATTERNS[i])]),
       );
 
-      // Build the per-row daysByText covering ALL enrolled beneficiaries —
-      // non-active ones get a zero array so they're excluded from the payroll.
-      const daysByText = Object.fromEntries(names.map((name) => {
+      // daysByText keys are unique names too — enterProjectTimeEntriesPerBeneficiary
+      // uses `.find()` which only addresses the first matching row anyway.
+      const daysByText = Object.fromEntries(uniqueNames.map((name) => {
         const idx = activeNames.indexOf(name);
         return [name, idx >= 0 ? DAY_PATTERNS[idx] : ZERO_DAYS];
       }));

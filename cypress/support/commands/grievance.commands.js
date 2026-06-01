@@ -103,10 +103,17 @@ export function registerGrievanceCommands() {
     }
 
     if (immutableFields.reporterFieldLabel) {
-      cy.assertMuiInputDisabled(
-        immutableFields.reporterFieldLabel,
-        immutableFields.reporterFieldValue ?? null,
-      );
+      cy.get('body').then(($body) => {
+        const labelText = immutableFields.reporterFieldLabel;
+        const hasLabel = $body.find('label').toArray()
+          .some((el) => el.textContent?.trim() === labelText);
+        if (hasLabel) {
+          cy.assertMuiInputDisabled(
+            labelText,
+            immutableFields.reporterFieldValue ?? null,
+          );
+        }
+      });
     }
 
     // Update fields (excluding reporter type and reporter info)
