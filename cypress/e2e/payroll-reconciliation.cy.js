@@ -65,7 +65,7 @@ function getEnrolledBeneficiaryNames(programCode) {
     }
     const edges = res.body?.data?.beneficiary?.edges ?? [];
     const names = edges.map((e) => `${e.node.individual.firstName} ${e.node.individual.lastName}`);
-    names.sort();
+    names.sort((a, b) => a.localeCompare(b));
     return cy.wrap(names);
   });
 }
@@ -385,8 +385,9 @@ describe('Payroll reconciliation — timesheet (base-day-rate calcrule)', () => 
       // CSV row count must equal exactly the active cohort size.
       expect(rows).to.have.length(activeNames.length);
 
-      const downloadedNames = rows.map((r) => `${r['First Name']} ${r['Last Name']}`).sort();
-      expect(downloadedNames).to.deep.eq([...activeNames].sort());
+      const byName = (a, b) => a.localeCompare(b);
+      const downloadedNames = rows.map((r) => `${r['First Name']} ${r['Last Name']}`).sort(byName);
+      expect(downloadedNames).to.deep.eq([...activeNames].sort(byName));
 
       rows.forEach((row) => {
         const fullName = `${row['First Name']} ${row['Last Name']}`;

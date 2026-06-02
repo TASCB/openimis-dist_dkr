@@ -17,7 +17,7 @@ export function registerPaymentCycleCommands() {
     cy.visit('/front/paymentCycles');
     cy.contains('Payment Cycles Found');
 
-    cy.createClick();
+    cy.clickCreate();
     cy.contains('General Information');
   });
 
@@ -63,7 +63,7 @@ export function registerPaymentCycleCommands() {
         const expectDialog = statusText.trim().toUpperCase() === 'ACTIVE';
         cy.log(`savePaymentCycle: status="${statusText.trim()}" → expectDialog=${expectDialog}`);
 
-        cy.saveClick();
+        cy.clickSave();
 
         if (expectDialog) {
           cy.get('[role="dialog"]', { timeout: TIMEOUTS.BACKEND_VALIDATION })
@@ -100,7 +100,7 @@ export function registerPaymentCycleCommands() {
     dateTo,
   } = {}) => {
     cy.visit('/front/paymentCycles');
-    cy.contains(/\d+ Payment Cycle/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payment Cycles Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(1000);
 
@@ -122,7 +122,7 @@ export function registerPaymentCycleCommands() {
 
     cy.aliasGraphqlQuery('paymentCycle(', 'paymentCycleSearch');
     cy.contains('button', 'Search').click();
-    cy.awaitSearcherRefresh('paymentCycleSearch', /\d+ Payment Cycle/);
+    cy.awaitSearcherRefresh('paymentCycleSearch', 'Payment Cycles Found');
   });
 
   Cypress.Commands.add('assertPaymentCycleRowVisible', ({ code, status }) => {
@@ -135,7 +135,7 @@ export function registerPaymentCycleCommands() {
 
   Cypress.Commands.add('resetPaymentCycleFilters', () => {
     cy.aliasGraphqlQuery('paymentCycle(', 'paymentCycleReset');
-    cy.resetSearcherFilters(/\d+ Payment Cycle/, 'paymentCycleReset');
+    cy.resetSearcherFilters('Payment Cycles Found', 'paymentCycleReset');
   });
 
   Cypress.Commands.add('openPaymentCycleForViewFromList', (code) => {

@@ -152,7 +152,7 @@ describe('Payment point workflows', () => {
 
   it('selecting Region populates District options in filter', () => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payment Points Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
     // Initial fetch briefly re-renders the filter card and detaches subjects.
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(1000);
@@ -170,7 +170,7 @@ describe('Payment point workflows', () => {
 
   it('Reset Filters clears all inputs and restores full list', () => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payment Points Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
     // Initial fetch briefly re-renders the filter card and detaches subjects.
     // eslint-disable-next-line cypress/no-unnecessary-waiting
     cy.wait(1000);

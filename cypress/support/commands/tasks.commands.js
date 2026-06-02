@@ -18,7 +18,7 @@ export function registerTaskCommands() {
         return;
       }
 
-      cy.createClick();
+      cy.clickCreate();
 
       cy.enterMuiInput('Code', code);
       cy.chooseMuiSelect('Policy Status', 'ANY');
@@ -94,7 +94,7 @@ export function registerTaskCommands() {
       cy.enterMuiInput('Entity', filterText);
       cy.aliasGraphqlQuery('task(', `taskSearch_${attempt}`);
       cy.contains('button', 'Search').click();
-      cy.awaitSearcherRefresh(`taskSearch_${attempt}`, /\d+ Tasks Found/);
+      cy.awaitSearcherRefresh(`taskSearch_${attempt}`, 'Tasks Found');
       cy.get('body').then(($body) => {
         const $rows = $body.find('table tbody tr');
         const matched = $rows.toArray().filter((tr) => (
@@ -163,7 +163,7 @@ export function registerTaskCommands() {
 
     // Save changes — the task form's Save FAB. After save, task transitions
     // from RECEIVED → ACCEPTED and the approve/fail Fabs enable.
-    cy.saveClick();
+    cy.clickSave();
 
     // The TaskApprovementPanel renders at the bottom of the page.  Use
     // ensureScrollable:false because very short task detail pages may not

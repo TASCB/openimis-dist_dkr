@@ -41,9 +41,13 @@ describe('Payment plan workflows', () => {
   };
   const createdPaymentPlans = new Set();
 
+  let codeSeq = 0;
   const planData = (label, benefitPlanCode, benefitPlanName) => {
     const timestamp = getTimestamp();
-    const uniqueCodePart = `${Date.now().toString().slice(-5)}${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
+    // Reuse getTimestamp() for the datetime portion; a per-run counter keeps
+    // the code unique across same-millisecond calls without a PRNG.
+    codeSeq += 1;
+    const uniqueCodePart = `${timestamp.replace(/[^0-9]/g, '').slice(-6)}${codeSeq.toString(36).toUpperCase().padStart(2, '0')}`;
 
     return {
       code: `E2EPP${uniqueCodePart}`,
@@ -91,6 +95,126 @@ describe('Payment plan workflows', () => {
     cy.login();
   });
 
+  // --- Search & filter ---
+  it('searches payment plans by code and by name', () => {
+    const targetPlan = planData('Search Target', individualProgramCode, individualProgramName);
+    const otherPlan = planData('Search Other', individualProgramCode, individualProgramName);
+
+    cy.createPaymentPlan(targetPlan);
+    cy.createPaymentPlan(otherPlan);
+    trackPaymentPlan(targetPlan.name);
+    trackPaymentPlan(otherPlan.name);
+
+    cy.filterPaymentPlans({ code: targetPlan.code });
+    cy.assertPaymentPlanRowVisible(targetPlan);
+    cy.assertPaymentPlanRowNotVisible(otherPlan);
+
+    cy.filterPaymentPlans({ name: otherPlan.name });
+    cy.assertPaymentPlanRowVisible(otherPlan);
+    cy.assertPaymentPlanRowNotVisible(targetPlan);
+  });
+
+  it('filters payment plans by benefit plan / program', () => {
+    const planA = planData('Filter BP A', individualProgramCode, individualProgramName);
+    const planB = planData('Filter BP B', groupProgramCode, groupProgramName);
+
+    cy.createPaymentPlan(planA);
+    cy.createPaymentPlan(planB);
+    trackPaymentPlan(planA.name);
+    trackPaymentPlan(planB.name);
+
+    // The payment plan filter uses product.ProductPicker which only searches insurance
+    // products, not SP programs. Filter by unique plan name instead to verify the
+    // search returns only the expected plan.
+    cy.filterPaymentPlans({ name: planA.name });
+    cy.assertPaymentPlanRowVisible({ name: planA.name });
+    cy.assertPaymentPlanRowNotVisible({ name: planB.name });
+
+    cy.filterPaymentPlans({ name: planB.name });
+    cy.assertPaymentPlanRowVisible({ name: planB.name });
+    cy.assertPaymentPlanRowNotVisible({ name: planA.name });
+  });
+
+  it('filters payment plans by date range', () => {
+    const paymentPlan = planData('DateFilter', individualProgramCode, individualProgramName);
+
+    cy.createPaymentPlan(paymentPlan);
+    trackPaymentPlan(paymentPlan.name);
+
+    // dateValidFrom = today.  A filter with a far-future "Date Valid From"
+    // should exclude this plan (its dateValidFrom is before the filter value).
+    cy.filterPaymentPlans({
+      name: paymentPlan.name,
+      dateValidFrom: getDateOffset(365),
+    });
+    cy.assertPaymentPlanRowNotVisible({ name: paymentPlan.name });
+
+    // A filter with a past "Date Valid From" should include it.
+    cy.filterPaymentPlans({
+      name: paymentPlan.name,
+      dateValidFrom: getDateOffset(-365),
+    });
+    cy.assertPaymentPlanRowVisible({ name: paymentPlan.name });
+  });
+
+  it('resets payment plan filters and restores full list', () => {
+    cy.visit('/front/paymentPlans');
+    cy.contains('Payment Plans Found');
+
+    // The results title is "{N} Payment Plans Found"; the count leads the
+    // string so parseInt reads it without a regex.
+    const readCount = () => cy.contains('Payment Plans Found')
+      .invoke('text')
+      .then((t) => parseInt(t.trim(), 10));
+
+    readCount().then((defaultCount) => {
+      expect(defaultCount, 'default (unfiltered) count').to.be.greaterThan(0);
+
+      // Apply a filter that matches nothing → the list narrows.
+      cy.aliasGraphqlQuery('paymentPlan(', 'ppResetFilter');
+      cy.enterMuiInput('Code', 'NO_SUCH_CODE_XYZ');
+      cy.contains('button', 'Search').click();
+      cy.awaitSearcherRefresh('ppResetFilter', 'Payment Plans Found');
+      readCount().then((filteredCount) => {
+        expect(filteredCount, 'filtered count').to.be.lessThan(defaultCount);
+      });
+
+      // Reset → inputs cleared AND the count returns to the default.
+      cy.resetPaymentPlanFilters();
+      cy.assertMuiInput('Code', '');
+      cy.assertMuiInput('Name', '');
+      readCount().then((restoredCount) => {
+        expect(restoredCount, 'restored count').to.eq(defaultCount);
+      });
+    });
+  });
+
+  it('renders pagination controls and respects Rows Per Page selection', () => {
+    cy.visit('/front/paymentPlans');
+    cy.contains('Payment Plans Found');
+    cy.get('table tbody tr', { timeout: TIMEOUTS.BACKEND_VALIDATION })
+      .should('have.length.at.least', 1);
+
+    // MUI TablePagination exposes the Rows Per Page dropdown, row-range
+    // label, and prev/next arrows — assert each is rendered.
+    cy.get('.MuiTablePagination-root').should('exist');
+    cy.contains(/Rows Per Page/i).should('be.visible');
+    cy.get('.MuiTablePagination-actions button').should('have.length.at.least', 2);
+
+    // Changing the page size triggers a refetch; alias so we can await it,
+    // then assert the first visible size option renders and is clickable.
+    cy.aliasGraphqlQuery('paymentPlan(', 'paymentPlanPageSize');
+    cy.get('.MuiTablePagination-select').first().click();
+    cy.get('[role="listbox"] li')
+      .should('have.length.at.least', 2)
+      .last()
+      .click();
+    cy.awaitSearcherRefresh('paymentPlanPageSize', /Payment Plans Found/);
+    cy.get('table tbody tr').should('have.length.at.least', 1);
+  });
+
+
+  // --- Creation ---
   it('validates required fields before allowing payment plan creation', () => {
     cy.openCreatePaymentPlan();
     cy.assertSaveDisabled();
@@ -108,7 +232,7 @@ describe('Payment plan workflows', () => {
     cy.openPaymentPlanForEditFromList(paymentPlan.code);
     cy.assertPaymentPlanDetailFields(paymentPlan);
   });
-  
+
   it('shows validation error when duplicate code is entered', () => {
     const existingPlan = planData('Duplicate Base', individualProgramCode, individualProgramName);
     const duplicateCandidate = planData('Duplicate Candidate', individualProgramCode, individualProgramName);
@@ -150,24 +274,86 @@ describe('Payment plan workflows', () => {
     cy.assertMuiInput('Value', 'prim');
   });
 
-  it('searches payment plans by code and by name', () => {
-    const targetPlan = planData('Search Target', individualProgramCode, individualProgramName);
-    const otherPlan = planData('Search Other', individualProgramCode, individualProgramName);
+  it('applies multiple advanced criteria rows', () => {
+    const paymentPlan = planData('Multi Criteria', individualProgramCode, individualProgramName);
 
-    cy.createPaymentPlan(targetPlan);
-    cy.createPaymentPlan(otherPlan);
-    trackPaymentPlan(targetPlan.name);
-    trackPaymentPlan(otherPlan.name);
+    cy.createPaymentPlan({
+      ...paymentPlan,
+      advancedCriteria: [
+        { field: 'Educated level', filter: 'Contains', value: 'prim', amount: 1 },
+        { field: 'Educated level', filter: 'Contains', value: 'bach', amount: 2 },
+      ],
+    });
+    trackPaymentPlan(paymentPlan.name);
 
-    cy.filterPaymentPlans({ code: targetPlan.code });
-    cy.assertPaymentPlanRowVisible(targetPlan);
-    cy.assertPaymentPlanRowNotVisible(otherPlan);
+    // Reopen and verify both criteria are rendered.
+    cy.openPaymentPlanForEditFromList(paymentPlan.code);
+    cy.contains('General Information').should('be.visible');
 
-    cy.filterPaymentPlans({ name: otherPlan.name });
-    cy.assertPaymentPlanRowVisible(otherPlan);
-    cy.assertPaymentPlanRowNotVisible(targetPlan);
+    // Two criterion rows render two separate "Value" inputs.  assertMuiInput
+    // targets the first by label, so for the multi-row case we assert on the
+    // raw inputs — any row matching either value is sufficient.
+    cy.get('input[value="prim"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('exist');
+    cy.get('input[value="bach"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('exist');
   });
 
+  it('creates a benefit-plan payment plan for a group-profile program', () => {
+    const paymentPlan = planData('Group Smoke', groupProgramCode, groupProgramName);
+
+    cy.createPaymentPlan(paymentPlan);
+    trackPaymentPlan(paymentPlan.name);
+
+    cy.filterPaymentPlans({ code: paymentPlan.code });
+    cy.assertPaymentPlanRowVisible(paymentPlan);
+
+    cy.openPaymentPlanForEditFromList(paymentPlan.code);
+    cy.assertPaymentPlanDetailFields(paymentPlan);
+  });
+
+  it('creates a payment plan with timesheet calcrule and Base Day Rate', () => {
+    const paymentPlan = {
+      ...planData('Timesheet BDR', timesheetProgramCode, timesheetProgramName),
+      calculationRule: CALC_RULES.TIMESHEET,
+      calculationParams: { 'Base Day Rate': '150' },
+    };
+
+    cy.createPaymentPlan(paymentPlan);
+    trackPaymentPlan(paymentPlan.name);
+
+    cy.openPaymentPlanForEditFromList(paymentPlan.code);
+    cy.assertPaymentPlanDetailFields({
+      code: paymentPlan.code,
+      name: paymentPlan.name,
+      dateValidFrom: paymentPlan.dateValidFrom,
+      calculationRule: CALC_RULES.TIMESHEET,
+      benefitPlanCode: timesheetProgramCode,
+      benefitPlanName: timesheetProgramName,
+      calculationParams: { 'Base Day Rate': '150' },
+    });
+  });
+
+  it('creates a timesheet payment plan without optional Base Day Rate', () => {
+    const paymentPlan = {
+      ...planData('Timesheet NoBDR', timesheetProgramCode, timesheetProgramName),
+      calculationRule: CALC_RULES.TIMESHEET,
+    };
+
+    cy.createPaymentPlan(paymentPlan);
+    trackPaymentPlan(paymentPlan.name);
+
+    cy.openPaymentPlanForEditFromList(paymentPlan.code);
+    cy.assertPaymentPlanDetailFields({
+      code: paymentPlan.code,
+      name: paymentPlan.name,
+      dateValidFrom: paymentPlan.dateValidFrom,
+      calculationRule: CALC_RULES.TIMESHEET,
+      benefitPlanCode: timesheetProgramCode,
+      benefitPlanName: timesheetProgramName,
+    });
+  });
+
+
+  // --- Updates ---
   it('edits all editable fields on an existing payment plan', () => {
     const paymentPlan = planData('Edit', individualProgramCode, individualProgramName);
     const updatedName = `${paymentPlan.name} Updated`;
@@ -247,163 +433,4 @@ describe('Payment plan workflows', () => {
     cy.assertPaymentPlanRowVisible({ name: paymentPlan.name });
   });
 
-  it('creates a benefit-plan payment plan for a group-profile program', () => {
-    const paymentPlan = planData('Group Smoke', groupProgramCode, groupProgramName);
-
-    cy.createPaymentPlan(paymentPlan);
-    trackPaymentPlan(paymentPlan.name);
-
-    cy.filterPaymentPlans({ code: paymentPlan.code });
-    cy.assertPaymentPlanRowVisible(paymentPlan);
-
-    cy.openPaymentPlanForEditFromList(paymentPlan.code);
-    cy.assertPaymentPlanDetailFields(paymentPlan);
-  });
-
-  it('filters payment plans by benefit plan / program', () => {
-    const planA = planData('Filter BP A', individualProgramCode, individualProgramName);
-    const planB = planData('Filter BP B', groupProgramCode, groupProgramName);
-
-    cy.createPaymentPlan(planA);
-    cy.createPaymentPlan(planB);
-    trackPaymentPlan(planA.name);
-    trackPaymentPlan(planB.name);
-
-    // The payment plan filter uses product.ProductPicker which only searches insurance
-    // products, not SP programs. Filter by unique plan name instead to verify the
-    // search returns only the expected plan.
-    cy.filterPaymentPlans({ name: planA.name });
-    cy.assertPaymentPlanRowVisible({ name: planA.name });
-    cy.assertPaymentPlanRowNotVisible({ name: planB.name });
-
-    cy.filterPaymentPlans({ name: planB.name });
-    cy.assertPaymentPlanRowVisible({ name: planB.name });
-    cy.assertPaymentPlanRowNotVisible({ name: planA.name });
-  });
-
-  it('applies multiple advanced criteria rows', () => {
-    const paymentPlan = planData('Multi Criteria', individualProgramCode, individualProgramName);
-
-    cy.createPaymentPlan({
-      ...paymentPlan,
-      advancedCriteria: [
-        { field: 'Educated level', filter: 'Contains', value: 'prim', amount: 1 },
-        { field: 'Educated level', filter: 'Contains', value: 'bach', amount: 2 },
-      ],
-    });
-    trackPaymentPlan(paymentPlan.name);
-
-    // Reopen and verify both criteria are rendered.
-    cy.openPaymentPlanForEditFromList(paymentPlan.code);
-    cy.contains('General Information').should('be.visible');
-
-    // Two criterion rows render two separate "Value" inputs.  assertMuiInput
-    // targets the first by label, so for the multi-row case we assert on the
-    // raw inputs — any row matching either value is sufficient.
-    cy.get('input[value="prim"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('exist');
-    cy.get('input[value="bach"]', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should('exist');
-  });
-
-  it('filters payment plans by date range', () => {
-    const paymentPlan = planData('DateFilter', individualProgramCode, individualProgramName);
-
-    cy.createPaymentPlan(paymentPlan);
-    trackPaymentPlan(paymentPlan.name);
-
-    // dateValidFrom = today.  A filter with a far-future "Date Valid From"
-    // should exclude this plan (its dateValidFrom is before the filter value).
-    cy.filterPaymentPlans({
-      name: paymentPlan.name,
-      dateValidFrom: getDateOffset(365),
-    });
-    cy.assertPaymentPlanRowNotVisible({ name: paymentPlan.name });
-
-    // A filter with a past "Date Valid From" should include it.
-    cy.filterPaymentPlans({
-      name: paymentPlan.name,
-      dateValidFrom: getDateOffset(-365),
-    });
-    cy.assertPaymentPlanRowVisible({ name: paymentPlan.name });
-  });
-
-  it('resets payment plan filters and restores full list', () => {
-    cy.visit('/front/paymentPlans');
-    cy.contains('Payment Plans Found');
-
-    cy.enterMuiInput('Code', 'FAKE_CODE');
-    cy.enterMuiInput('Name', 'FAKE_NAME');
-
-    cy.resetPaymentPlanFilters();
-
-    cy.assertMuiInput('Code', '');
-    cy.assertMuiInput('Name', '');
-  });
-
-  it('renders pagination controls and respects Rows Per Page selection', () => {
-    cy.visit('/front/paymentPlans');
-    cy.contains('Payment Plans Found');
-    cy.get('table tbody tr', { timeout: TIMEOUTS.BACKEND_VALIDATION })
-      .should('have.length.at.least', 1);
-
-    // MUI TablePagination exposes the Rows Per Page dropdown, row-range
-    // label, and prev/next arrows — assert each is rendered.
-    cy.get('.MuiTablePagination-root').should('exist');
-    cy.contains(/Rows Per Page/i).should('be.visible');
-    cy.get('.MuiTablePagination-actions button').should('have.length.at.least', 2);
-
-    // Changing the page size triggers a refetch; alias so we can await it,
-    // then assert the first visible size option renders and is clickable.
-    cy.aliasGraphqlQuery('paymentPlan(', 'paymentPlanPageSize');
-    cy.get('.MuiTablePagination-select').first().click();
-    cy.get('[role="listbox"] li')
-      .should('have.length.at.least', 2)
-      .last()
-      .click();
-    cy.awaitSearcherRefresh('paymentPlanPageSize', /Payment Plans Found/);
-    cy.get('table tbody tr').should('have.length.at.least', 1);
-  });
-
-  // --- Timesheet Calculation Rule ---
-
-  it('creates a payment plan with timesheet calcrule and Base Day Rate', () => {
-    const paymentPlan = {
-      ...planData('Timesheet BDR', timesheetProgramCode, timesheetProgramName),
-      calculationRule: CALC_RULES.TIMESHEET,
-      calculationParams: { 'Base Day Rate': '150' },
-    };
-
-    cy.createPaymentPlan(paymentPlan);
-    trackPaymentPlan(paymentPlan.name);
-
-    cy.openPaymentPlanForEditFromList(paymentPlan.code);
-    cy.assertPaymentPlanDetailFields({
-      code: paymentPlan.code,
-      name: paymentPlan.name,
-      dateValidFrom: paymentPlan.dateValidFrom,
-      calculationRule: CALC_RULES.TIMESHEET,
-      benefitPlanCode: timesheetProgramCode,
-      benefitPlanName: timesheetProgramName,
-      calculationParams: { 'Base Day Rate': '150' },
-    });
-  });
-
-  it('creates a timesheet payment plan without optional Base Day Rate', () => {
-    const paymentPlan = {
-      ...planData('Timesheet NoBDR', timesheetProgramCode, timesheetProgramName),
-      calculationRule: CALC_RULES.TIMESHEET,
-    };
-
-    cy.createPaymentPlan(paymentPlan);
-    trackPaymentPlan(paymentPlan.name);
-
-    cy.openPaymentPlanForEditFromList(paymentPlan.code);
-    cy.assertPaymentPlanDetailFields({
-      code: paymentPlan.code,
-      name: paymentPlan.name,
-      dateValidFrom: paymentPlan.dateValidFrom,
-      calculationRule: CALC_RULES.TIMESHEET,
-      benefitPlanCode: timesheetProgramCode,
-      benefitPlanName: timesheetProgramName,
-    });
-  });
 });

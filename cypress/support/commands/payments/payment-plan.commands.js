@@ -99,7 +99,7 @@ export function registerPaymentPlanCommands() {
     cy.visit('/front/paymentPlans');
     cy.contains('Payment Plans Found');
 
-    cy.createClick('Create new Payment Plan');
+    cy.clickCreate('Create new Payment Plan');
     cy.contains('General Information');
   });
 

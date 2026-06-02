@@ -73,7 +73,7 @@ export function registerPayrollCommands() {
   Cypress.Commands.add('openCreatePayroll', () => {
     cy.visit('/front/payrolls');
     cy.contains('Payrolls Found');
-    cy.createClick();
+    cy.clickCreate();
     cy.url().should('include', '/payrolls/payroll');
   });
 
@@ -111,7 +111,7 @@ export function registerPayrollCommands() {
   });
 
   Cypress.Commands.add('savePayroll', () => {
-    cy.saveClick();
+    cy.clickSave();
     // the save actually succeeded.
     cy.url({ timeout: TIMEOUTS.BACKEND_VALIDATION }).should('match', /\/payrolls\/payroll\/.+/);
   });
@@ -150,7 +150,7 @@ export function registerPayrollCommands() {
   } = {}) => {
     cy.visit(visitPending ? '/front/payrollsPending' : '/front/payrolls');
 
-    cy.contains(/\d+ Payrolls Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payrolls Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
 
     if (name !== undefined) {
       cy.enterMuiInput('Name', name);
@@ -176,12 +176,12 @@ export function registerPayrollCommands() {
 
     cy.aliasGraphqlQuery('payroll(', 'payrollSearch');
     cy.contains('button', 'Search').click();
-    cy.awaitSearcherRefresh('payrollSearch', /\d+ Payrolls Found/);
+    cy.awaitSearcherRefresh('payrollSearch', 'Payrolls Found');
   });
 
   Cypress.Commands.add('resetPayrollFilters', () => {
     cy.aliasGraphqlQuery('payroll(', 'payrollReset');
-    cy.resetSearcherFilters(/\d+ Payrolls Found/, 'payrollReset');
+    cy.resetSearcherFilters('Payrolls Found', 'payrollReset');
   });
 
   Cypress.Commands.add('assertPayrollRowVisible', ({ name }) => {
@@ -311,7 +311,7 @@ export function registerPayrollCommands() {
   // (StrategyOnlinePayment).
   Cypress.Commands.add('approveAndClosePayrollFromSummary', (payrollName) => {
     cy.visit('/front/payrollsApproved');
-    cy.contains(/\d+ Payrolls Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payrolls Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
     cy.enterMuiInput('Name', payrollName);
     cy.aliasGraphqlQuery('payroll(', 'approvedPayrollSearch_close');
     cy.contains('button', 'Search').click();
@@ -404,7 +404,7 @@ export function registerPayrollCommands() {
   // to skip a specific assertion.
   Cypress.Commands.add('assertReconciliationSummary', (payrollName, expected) => {
     cy.visit('/front/payrollsApproved');
-    cy.contains(/\d+ Payrolls Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payrolls Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
     cy.enterMuiInput('Name', payrollName);
     cy.aliasGraphqlQuery('payroll(', 'approvedPayrollSearch');
     cy.contains('button', 'Search').click();

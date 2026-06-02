@@ -34,7 +34,7 @@ export function registerFormCommands() {
     cy.get('ul.MuiList-root li').first().should('not.contain', prefix);
   });
 
-  Cypress.Commands.add('createClick', (createTitle = 'Create') => {
+  Cypress.Commands.add('clickCreate', (createTitle = 'Create') => {
     cy.get(`[title="${createTitle}"] button`, { timeout: TIMEOUTS.BACKEND_VALIDATION })
       .should('not.be.disabled')
       .click();
@@ -43,13 +43,13 @@ export function registerFormCommands() {
   // Click the Save FAB.  Tries each known tooltip title (most-specific
   // first) and clicks the first non-disabled match.  Pass an explicit
   // title string to scope to a single candidate.
-  Cypress.Commands.add('saveClick', (saveTitle) => {
+  Cypress.Commands.add('clickSave', (saveTitle) => {
     const titles = saveTitle ? [saveTitle] : KNOWN_SAVE_TITLES;
     cy.get('body', { timeout: TIMEOUTS.BACKEND_VALIDATION }).should(($body) => {
       const hit = titles.find((t) => $body.find(`[title="${t}"] button`).length);
       expect(
         hit,
-        `saveClick: no Save FAB found with any known title (${titles.join(', ')})`,
+        `clickSave: no Save FAB found with any known title (${titles.join(', ')})`,
       ).to.exist;
     }).then(($body) => {
       const hit = titles.find((t) => $body.find(`[title="${t}"] button`).length);
@@ -71,7 +71,7 @@ export function registerFormCommands() {
     mutationLabel,
     assertNoFail = false,
   } = {}) => {
-    cy.saveClick(saveTitle);
+    cy.clickSave(saveTitle);
     cy.waitForJournalProgress();
     if (mutationLabel || assertNoFail) {
       cy.assertJournalFirstEntryContains(mutationLabel || '');

@@ -254,7 +254,7 @@ describe('Payroll workflows', () => {
 
   it('resets payroll filters and restores full list', () => {
     cy.visit('/front/payrolls');
-    cy.contains(/\d+ Payrolls Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payrolls Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
 
     cy.enterMuiInput('Name', 'FAKE_NAME');
 

@@ -10,8 +10,8 @@ export function registerPaymentPointCommands() {
 
   Cypress.Commands.add('openCreatePaymentPoint', () => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
-    cy.createClick();
+    cy.contains('Payment Points Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.clickCreate();
     cy.url().should('include', '/paymentPoints/paymentPoint');
   });
 
@@ -33,8 +33,8 @@ export function registerPaymentPointCommands() {
   });
 
   Cypress.Commands.add('savePaymentPoint', () => {
-    cy.saveClick();
-    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.clickSave();
+    cy.contains('Payment Points Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
   });
 
   Cypress.Commands.add('createPaymentPoint', (data) => {
@@ -53,7 +53,7 @@ export function registerPaymentPointCommands() {
     showDeleted = false,
   } = {}) => {
     cy.visit('/front/paymentPoints');
-    cy.contains(/\d+ Payment Points Found/, { timeout: TIMEOUTS.BACKEND_VALIDATION });
+    cy.contains('Payment Points Found', { timeout: TIMEOUTS.BACKEND_VALIDATION });
 
     cy.chooseLocation({ region, district, municipality, village });
     if (ppm) {
@@ -68,7 +68,7 @@ export function registerPaymentPointCommands() {
 
     cy.aliasGraphqlQuery('paymentPoint(', 'paymentPointSearch');
     cy.contains('button', 'Search').click();
-    cy.awaitSearcherRefresh('paymentPointSearch', /\d+ Payment Points Found/);
+    cy.awaitSearcherRefresh('paymentPointSearch', 'Payment Points Found');
   });
 
   Cypress.Commands.add('assertPaymentPointRowVisible', ({ name }) => {
@@ -116,6 +116,6 @@ export function registerPaymentPointCommands() {
 
   Cypress.Commands.add('resetPaymentPointFilters', () => {
     cy.aliasGraphqlQuery('paymentPoint(', 'paymentPointReset');
-    cy.resetSearcherFilters(/\d+ Payment Points Found/, 'paymentPointReset');
+    cy.resetSearcherFilters('Payment Points Found', 'paymentPointReset');
   });
 }
