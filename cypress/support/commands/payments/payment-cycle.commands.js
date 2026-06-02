@@ -126,7 +126,20 @@ export function registerPaymentCycleCommands() {
   });
 
   Cypress.Commands.add('assertPaymentCycleRowVisible', ({ code, status }) => {
-    cy.assertTableRowVisible([code, status]);
+    cy.contains('table tbody tr', code, { timeout: TIMEOUTS.BACKEND_VALIDATION })
+      .should('exist')
+      .within(() => {
+        if (status) {
+          // The Status column renders a read-only PaymentCycleStatusPicker
+          // (label "Payment Cycle Status") as an <input value="PENDING">.
+          // cy.contains matches element text, not input values, so assert the
+          // value across the row's inputs instead.
+          cy.get('input').then(($inputs) => {
+            const values = [...$inputs].map((i) => i.value);
+            expect(values, `status for cycle ${code}`).to.include(status);
+          });
+        }
+      });
   });
 
   Cypress.Commands.add('assertPaymentCycleRowNotVisible', ({ code }) => {

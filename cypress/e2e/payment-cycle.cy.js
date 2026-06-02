@@ -160,7 +160,7 @@ describe('Payment cycle workflows', () => {
     cy.createPaymentCycle(cycle);
 
     cy.filterPaymentCycles({ code: cycle.code });
-    cy.assertPaymentCycleRowVisible({ code: cycle.code });
+    cy.assertPaymentCycleRowVisible({ code: cycle.code, status: cycle.status });
   });
 
   it('creates an ACTIVE payment cycle via task approval and verifies all fields', () => {
@@ -174,7 +174,7 @@ describe('Payment cycle workflows', () => {
     cy.approveLatestPaymentCycleTask();
 
     cy.filterPaymentCycles({ code: cycle.code });
-    cy.assertPaymentCycleRowVisible({ code: cycle.code });
+    cy.assertPaymentCycleRowVisible({ code: cycle.code, status: 'ACTIVE' });
 
     cy.openPaymentCycleForViewFromList(cycle.code);
     cy.assertPaymentCycleDetailFields({ ...cycle, status: 'ACTIVE' });
@@ -186,7 +186,7 @@ describe('Payment cycle workflows', () => {
     cy.createPaymentCycle({ ...cycle, status: 'SUSPENDED' });
 
     cy.filterPaymentCycles({ code: cycle.code });
-    cy.assertPaymentCycleRowVisible({ code: cycle.code });
+    cy.assertPaymentCycleRowVisible({ code: cycle.code, status: 'SUSPENDED' });
   });
 
 
