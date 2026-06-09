@@ -8,4 +8,15 @@ openimis-dist_dkr.code-workspace
 node_modules/
 cypress/screenshots/
 cypress/downloads/
+cypress/videos/
 cypress/fixtures/tmp_individuals.csv
+cypress/fixtures/_generated/
+
+.venv
+
+.vscode
+
+# Environment variables
+.env
+.env.local
+.env.*.local
