@@ -7,3 +7,9 @@ data/*
 openimis-dist_dkr.code-workspace
 node_modules/
 cypress/screenshots/
+*.dump
+*.sql.gz
+openimis-be-tasaf_payment_py/
+openimis-fe-tasaf-payment_js/
+openimis-be-legacy_individual_py/
+openimis-fe-legacy_individual_js/

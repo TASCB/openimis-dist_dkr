@@ -23,6 +23,7 @@ x-api: &default-api
     - OPENSEARCH_ADMIN=${OPENSEARCH_ADMIN}
     - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
     - OPENSEARCH_HOSTS=${OPENSEARCH_HOSTS}
+    - DATA_UPLOAD_MAX_MEMORY_SIZE=${DATA_UPLOAD_MAX_MEMORY_SIZE:-67108864}
   volumes:
     - photos:/openimis-be/openIMIS/images/insurees
   depends_on:
@@ -44,6 +45,7 @@ services:
       - NEW_OPENIMIS_HOST=${DOMAIN}
       - OPENIMIS_CONF_JSON=${OPENIMIS_FE_CONF_JSON}
       - OPENSEARCH_BASIC_TOKEN=${OPENSEARCH_BASIC_TOKEN}
+      - DATA_UPLOAD_MAX_MEMORY_SIZE=${DATA_UPLOAD_MAX_MEMORY_SIZE:-67108864}
     networks:
       openimis-net:
     ports:
