@@ -37,9 +37,21 @@ x-api: &default-api # image: ghcr.io/openimis/openimis-be:${BE_TAG:-develop}
     - DEMO_DATASET=${DEMO_DATASET:-true}
     - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
     - DATA_UPLOAD_MAX_MEMORY_SIZE=${DATA_UPLOAD_MAX_MEMORY_SIZE:-67108864}
+    # GovESB; off unless ESB_ENABLED=true, key files in ./secrets/esb
+    - ESB_ENABLED=${ESB_ENABLED:-false}
+    - MUSE_ENVIRONMENT=${MUSE_ENVIRONMENT:-}
+    - ESB_AUTH_URL=${ESB_AUTH_URL:-}
+    - ESB_ENGINE_URL=${ESB_ENGINE_URL:-}
+    - ESB_CLIENT_ID=${ESB_CLIENT_ID:-}
+    - ESB_CLIENT_SECRET=${ESB_CLIENT_SECRET:-}
+    - ESB_CLIENT_PRIVATE_KEY=${ESB_CLIENT_PRIVATE_KEY:-/run/esb/tasaf_private.pem}
+    - ESB_CLIENT_PUBLIC_KEY=${ESB_CLIENT_PUBLIC_KEY:-/run/esb/tasaf_public.pem}
+    - ESB_GOV_PUBLIC_KEY_B64=${ESB_GOV_PUBLIC_KEY_B64:-}
+    - ESB_API_CODES=${ESB_API_CODES:-}
 
   volumes:
     - photos:/openimis-be/openIMIS/images/insurees
+    - ./secrets/esb:/run/esb:ro
   depends_on:
     db:
       condition: service_healthy
