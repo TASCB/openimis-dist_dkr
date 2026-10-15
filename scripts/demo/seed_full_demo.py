@@ -1,7 +1,10 @@
-"""Full-system demo data built from 1,000 real, anonymised households.
+"""Full-system demo data: 1,000 households through the whole system.
 
-Takes real households from earlier imports (the staged rows of IndividualDataSource), replaces
-every name, phone, ID number, GPS point and survey key, and pushes them through the real import
+Two sources. SEED_SOURCE=fresh generates households (invented people, realistic family make-up and
+survey answers, real Tanzanian villages) for a new install; run scripts/demo/bootstrap_fresh.py
+first. SEED_SOURCE=real copies real households from earlier imports and replaces every name, phone,
+ID number, GPS point and survey key. Without SEED_SOURCE the script uses real households when the
+database has any, otherwise fresh ones. Either way the households go through the real import
 pipeline (IndividualImportSink -> staging -> SQL import -> group linking -> PCT enrolment task),
 one upload per district. Then enrols them in PCT, Public Works and Economic Inclusion and runs
 them through the whole system: payment accounts, plans, cycles, payrolls, bills, BANK/MNO
@@ -21,11 +24,11 @@ records are only read, never modified.
 
 Run inside the backend container (no rebuild):
 
-    docker compose exec -T backend python manage.py shell < seed_full_demo.py
-    docker compose exec -T -e SEED_HOUSEHOLDS=300 backend python manage.py shell < seed_full_demo.py
-    docker compose exec -T -e SEED_UNDO=1 backend python manage.py shell < seed_full_demo.py
+    docker compose exec -T backend python manage.py shell < scripts/demo/seed_full_demo.py
+    docker compose exec -T -e SEED_HOUSEHOLDS=300 backend python manage.py shell < scripts/demo/seed_full_demo.py
+    docker compose exec -T -e SEED_UNDO=1 backend python manage.py shell < scripts/demo/seed_full_demo.py
 
-Guide: docs/FULL_DEMO_SEED.md
+Guide: demo/DEMO_DATA.md
 """
 import json
 import re
@@ -46,6 +49,7 @@ TAG = 'full_demo'
 HOUSEHOLDS = int(os.environ.get('SEED_HOUSEHOLDS', '1000'))
 UNDO = os.environ.get('SEED_UNDO') == '1'
 SKIP_MODULES = os.environ.get('SEED_SKIP_MODULES') == '1'
+SOURCE_MODE = os.environ.get('SEED_SOURCE', '').strip().lower()
 RNG = random.Random(int(os.environ.get('SEED_RNG', '20260929')))
 CASE_HOUSEHOLDS = 40
 TICKETS = 160
@@ -57,6 +61,9 @@ PWP_SHARE = 0.30                 # active PCT households with a working-age memb
 EI_SHARE = 0.10                  # active PCT households also in Economic Inclusion
 GRADUATED_SHARE = 0.05           # PCT households graduated and moved to Economic Inclusion
 SUSPENDED_SHARE = 0.04
+NON_CONSENTED_SHARE = 0.03       # fresh households registered without consent (one stub row)
+HOME_DISTRICTS = [('206', 0.30), ('201', 0.20)]   # Arusha and Monduli, where the bootstrap's test users work
+OTHER_DISTRICTS = 5
 HHID_RE = r'^P3-\d{9}-\d{8}$'
 PII_KEY = re.compile(r'name|phone|nin|id_no|geo|gps|photo|interview__id|interview_key|assignment|'
                      r'existing_hhid|suggestion|sssys|hhid', re.IGNORECASE)
@@ -204,6 +211,77 @@ def msg_id():
 # ── 1. registry: real households, anonymised, through the real import ────────
 
 LOCATION_KEYS = {'region_name', 'district_name', 'ward_name', 'village_name'}
+
+# Answer codes and how often each occurs in real surveys ('h' = household answer, 'm' = per member);
+# codes only, no personal fields, no free text.
+SURVEY = json.loads(
+    "{\"college\":[\"h\",[\"0\",0.7969],[\"\",0.1719],[\"1\",0.0271]],\"cooking_energy\":[\"h\",[\"8\",0.9588],[\"7\",0"
+    ".0309],[\"2\",0.0051]],\"disability_albinism\":[\"h\",[\"0\",1.0]],\"disability_hearing\":[\"h\",[\"0\",0.9826"
+    "],[\"1\",0.0165]],\"disability_memory\":[\"h\",[\"0\",0.9693],[\"1\",0.0307]],\"disability_mobility\":[\"h\",["
+    "\"0\",0.9597],[\"1\",0.0387]],\"disability_mute\":[\"h\",[\"0\",0.9878],[\"1\",0.0109]],\"disability_selfcare"
+    "\":[\"h\",[\"0\",0.9707],[\"1\",0.028]],\"disability_visual\":[\"h\",[\"0\",0.9784],[\"1\",0.0203]],\"disast_cop"
+    "ing_act__1\":[\"h\",[\"\",0.5941],[\"0\",0.3496],[\"1\",0.0563]],\"disast_coping_act__2\":[\"h\",[\"\",0.5941],"
+    "[\"0\",0.3661],[\"1\",0.0398]],\"disast_coping_act__3\":[\"h\",[\"\",0.5941],[\"0\",0.3692],[\"1\",0.0367]],\"d"
+    "isast_coping_act__4\":[\"h\",[\"\",0.5941],[\"1\",0.2157],[\"0\",0.1902]],\"disast_coping_act__5\":[\"h\",[\"\""
+    ",0.5941],[\"0\",0.2949],[\"1\",0.111]],\"disast_coping_act__6\":[\"h\",[\"\",0.5941],[\"0\",0.4015]],\"disast"
+    "_coping_oth\":[\"h\",[\"\",0.9956]],\"disaster__1\":[\"h\",[\"0\",0.8014],[\"1\",0.1986]],\"disaster__10\":[\"h\""
+    ",[\"0\",0.9224],[\"1\",0.0776]],\"disaster__11\":[\"h\",[\"0\",0.9571],[\"1\",0.0429]],\"disaster__12\":[\"h\",["
+    "\"1\",0.5843],[\"0\",0.4157]],\"disaster__2\":[\"h\",[\"0\",0.8269],[\"1\",0.1731]],\"disaster__3\":[\"h\",[\"0\","
+    "0.9867],[\"1\",0.0133]],\"disaster__4\":[\"h\",[\"0\",0.9489],[\"1\",0.0511]],\"disaster__5\":[\"h\",[\"0\",0.93"
+    "75],[\"1\",0.0625]],\"disaster__6\":[\"h\",[\"0\",0.9638],[\"1\",0.0362]],\"disaster__7\":[\"h\",[\"0\",0.9677],"
+    "[\"1\",0.0323]],\"disaster__8\":[\"h\",[\"0\",0.9773],[\"1\",0.0227]],\"disaster__9\":[\"h\",[\"0\",0.9991]],\"di"
+    "sease\":[\"h\",[\"0\",0.8699],[\"1\",0.1252]],\"disease_type__1\":[\"h\",[\"\",0.8748],[\"0\",0.1234]],\"disease"
+    "_type__10\":[\"h\",[\"\",0.8748],[\"0\",0.1234]],\"disease_type__11\":[\"h\",[\"\",0.8748],[\"0\",0.1201],[\"1\","
+    "0.0051]],\"disease_type__12\":[\"h\",[\"\",0.8748],[\"0\",0.1239]],\"disease_type__13\":[\"h\",[\"\",0.8748],["
+    "\"0\",0.1252]],\"disease_type__14\":[\"h\",[\"\",0.8748],[\"0\",0.1116],[\"1\",0.0136]],\"disease_type__15\":["
+    "\"h\",[\"\",0.8748],[\"0\",0.125]],\"disease_type__2\":[\"h\",[\"\",0.8748],[\"0\",0.1192],[\"1\",0.006]],\"disea"
+    "se_type__3\":[\"h\",[\"\",0.8748],[\"0\",0.1221]],\"disease_type__4\":[\"h\",[\"\",0.8748],[\"0\",0.1112],[\"1\","
+    "0.014]],\"disease_type__5\":[\"h\",[\"\",0.8748],[\"0\",0.1252]],\"disease_type__6\":[\"h\",[\"\",0.8748],[\"0\""
+    ",0.1105],[\"1\",0.0147]],\"disease_type__7\":[\"h\",[\"\",0.8748],[\"0\",0.1243]],\"disease_type__8\":[\"h\",["
+    "\"\",0.8748],[\"0\",0.1121],[\"1\",0.0131]],\"disease_type__9\":[\"h\",[\"\",0.8748],[\"0\",0.1252]],\"disease_"
+    "type__94\":[\"h\",[\"\",0.8748],[\"0\",0.0719],[\"1\",0.0532]],\"edu_sponser__1\":[\"h\",[\"1\",0.8201],[\"\",0.1"
+    "719],[\"0\",0.008]],\"edu_sponser__2\":[\"h\",[\"0\",0.8165],[\"\",0.1719],[\"1\",0.0116]],\"edu_sponser__3\":"
+    "[\"h\",[\"0\",0.8243],[\"\",0.1719]],\"floor_material\":[\"h\",[\"7\",0.8643],[\"1\",0.1154],[\"6\",0.0069],[\"5\""
+    ",0.0062],[\"8\",0.0056]],\"has__errors\":[\"h\",[\"0\",0.9987]],\"health_insurance\":[\"h\",[\"2\",0.9577],[\"1"
+    "\",0.0423]],\"hh_asset__1\":[\"h\",[\"0\",0.9971]],\"hh_asset__10\":[\"h\",[\"0\",1.0]],\"hh_asset__11\":[\"h\",["
+    "\"0\",0.9918],[\"1\",0.0082]],\"hh_asset__12\":[\"h\",[\"0\",0.9978]],\"hh_asset__13\":[\"h\",[\"0\",0.9826],[\"1"
+    "\",0.0174]],\"hh_asset__14\":[\"h\",[\"0\",0.8926],[\"1\",0.1074]],\"hh_asset__15\":[\"h\",[\"0\",0.9989]],\"hh_"
+    "asset__16\":[\"h\",[\"0\",0.9907],[\"1\",0.0093]],\"hh_asset__17\":[\"h\",[\"0\",0.9644],[\"1\",0.0356]],\"hh_as"
+    "set__18\":[\"h\",[\"1\",0.6274],[\"0\",0.3726]],\"hh_asset__19\":[\"h\",[\"0\",0.5898],[\"1\",0.4102]],\"hh_asse"
+    "t__2\":[\"h\",[\"0\",0.9887],[\"1\",0.0113]],\"hh_asset__20\":[\"h\",[\"0\",0.986],[\"1\",0.014]],\"hh_asset__21"
+    "\":[\"h\",[\"0\",0.9969]],\"hh_asset__22\":[\"h\",[\"0\",0.9929],[\"1\",0.0071]],\"hh_asset__23\":[\"h\",[\"0\",0.8"
+    "209],[\"1\",0.1791]],\"hh_asset__24\":[\"h\",[\"0\",0.9958]],\"hh_asset__25\":[\"h\",[\"1\",0.6086],[\"0\",0.391"
+    "4]],\"hh_asset__26\":[\"h\",[\"0\",0.9446],[\"1\",0.0554]],\"hh_asset__27\":[\"h\",[\"0\",0.893],[\"1\",0.107]],"
+    "\"hh_asset__28\":[\"h\",[\"0\",0.9677],[\"1\",0.0323]],\"hh_asset__29\":[\"h\",[\"0\",0.9449],[\"1\",0.0551]],\"h"
+    "h_asset__3\":[\"h\",[\"0\",0.998]],\"hh_asset__30\":[\"h\",[\"0\",0.6441],[\"1\",0.3559]],\"hh_asset__31\":[\"h\""
+    ",[\"0\",0.9924],[\"1\",0.0076]],\"hh_asset__4\":[\"h\",[\"0\",1.0]],\"hh_asset__5\":[\"h\",[\"0\",0.9155],[\"1\",0"
+    ".0845]],\"hh_asset__6\":[\"h\",[\"0\",1.0]],\"hh_asset__7\":[\"h\",[\"1\",0.6791],[\"0\",0.3209]],\"hh_asset__8"
+    "\":[\"h\",[\"1\",0.5053],[\"0\",0.4947]],\"hh_asset__9\":[\"h\",[\"0\",0.9973]],\"hh_bedroom\":[\"h\",[\"2\",0.5285"
+    "],[\"1\",0.2413],[\"3\",0.1942],[\"4\",0.0242],[\"5\",0.0093]],\"hh_location\":[\"h\",[\"2\",0.9887],[\"1\",0.00"
+    "62],[\"3\",0.0051]],\"hhh_Edu_level\":[\"h\",[\"7\",0.6054],[\"18\",0.2242],[\"4\",0.0491],[\"12\",0.0314],[\"1"
+    "\",0.0296],[\"3\",0.016],[\"5\",0.0122],[\"2\",0.0087],[\"10\",0.0082],[\"6\",0.0082]],\"house_owneship\":[\"h"
+    "\",[\"1\",0.8688],[\"2\",0.0812],[\"3\",0.0443]],\"hunger_status\":[\"h\",[\"2\",0.8863],[\"1\",0.1137]],\"insch"
+    "ool_total\":[\"h\",[\"2\",0.244],[\"3\",0.1977],[\"1\",0.1882],[\"0\",0.147],[\"4\",0.1145],[\"5\",0.0478],[\"\","
+    "0.0378],[\"6\",0.0124],[\"7\",0.0087]],\"interview__status\":[\"h\",[\"120\",0.9989]],\"interview_results\":"
+    "[\"h\",[\"1\",0.9887],[\"-999999999\",0.0113]],\"interview_resultsNo\":[\"h\",[\"\",1.0]],\"is_tasaf_benefici"
+    "ary\":[\"h\",[\"2\",0.9978]],\"kindergaten\":[\"h\",[\"0\",0.6014],[\"1\",0.2],[\"\",0.1719],[\"2\",0.0238]],\"lig"
+    "hting_means\":[\"h\",[\"13\",0.3394],[\"2\",0.316],[\"4\",0.1844],[\"1\",0.085],[\"6\",0.044],[\"5\",0.0144],[\""
+    "11\",0.0091],[\"12\",0.0055]],\"mb_id_type\":[\"m\",[\"\",0.6833],[\"3\",0.1828],[\"1\",0.0703],[\"12\",0.0531]"
+    ",[\"7\",0.0073]],\"not_in_school\":[\"h\",[\"0\",0.5531],[\"1\",0.2509],[\"2\",0.1136],[\"\",0.0378],[\"3\",0.03"
+    "56],[\"4\",0.0064]],\"number_of_rooms\":[\"h\",[\"3\",0.3688],[\"2\",0.3637],[\"4\",0.1172],[\"1\",0.0852],[\"5"
+    "\",0.0489],[\"6\",0.0145]],\"primary\":[\"h\",[\"1\",0.2711],[\"2\",0.2353],[\"\",0.1719],[\"3\",0.1303],[\"0\",0"
+    ".1214],[\"4\",0.0527],[\"5\",0.0134]],\"read_n_write\":[\"h\",[\"1\",0.728],[\"2\",0.272]],\"roof_material\":["
+    "\"h\",[\"1\",0.8441],[\"5\",0.1119],[\"6\",0.0431]],\"rsn_not_attend_xll\":[\"h\",[\"\",0.5908],[\"10\",0.3105],"
+    "[\"1\",0.0572],[\"5\",0.0165],[\"9\",0.0087],[\"7\",0.0082],[\"4\",0.006]],\"secondary\":[\"h\",[\"0\",0.5683],["
+    "\"1\",0.1813],[\"\",0.1719],[\"2\",0.0629],[\"3\",0.0156]],\"source_income\":[\"h\",[\"1\",0.9089],[\"5\",0.0561"
+    "],[\"6\",0.0172],[\"10\",0.0112]],\"source_income__1\":[\"h\",[\"1\",0.5792],[\"0\",0.4208]],\"source_income_"
+    "_10\":[\"h\",[\"0\",0.9113],[\"1\",0.0887]],\"source_income__2\":[\"h\",[\"0\",0.9306],[\"1\",0.0694]],\"source_"
+    "income__3\":[\"h\",[\"0\",1.0]],\"source_income__4\":[\"h\",[\"0\",0.9891],[\"1\",0.0109]],\"source_income__5\""
+    ":[\"h\",[\"0\",0.5125],[\"1\",0.4875]],\"source_income__6\":[\"h\",[\"0\",0.9747],[\"1\",0.0253]],\"source_inco"
+    "me__7\":[\"h\",[\"0\",0.9857],[\"1\",0.0143]],\"source_income__8\":[\"h\",[\"0\",1.0]],\"source_income__9\":[\"h"
+    "\",[\"0\",0.9713],[\"1\",0.0287]],\"wall_material\":[\"h\",[\"6\",0.6235],[\"4\",0.2387],[\"3\",0.1079],[\"7\",0."
+    "0156],[\"2\",0.0113]],\"with_kitchen\":[\"h\",[\"2\",0.6541],[\"1\",0.2059],[\"3\",0.1401]]}"
+)
 FEMALE_ROLES = {'DAUGHTER', 'MOTHER', 'SISTER', 'GRANDDAUGHTER', 'DAUGHTER IN LAW', 'WIFE', 'CO-WIFE'}
 MALE_ROLES = {'SON', 'FATHER', 'BROTHER', 'GRANDSON', 'SON IN LAW', 'HUSBAND'}
 
@@ -351,6 +429,93 @@ def anonymise(rows, used_codes, today, poor):
     return records
 
 
+def source_mode():
+    if SOURCE_MODE in ('fresh', 'real'):
+        return SOURCE_MODE
+    return 'real' if select_source(1) else 'fresh'
+
+
+def district_villages():
+    from location.models import Location
+    villages = Location.objects.filter(type='V', validity_to__isnull=True, parent__parent__type='D')
+    by_district = {}
+    for v in villages.select_related('parent__parent__parent').iterator(chunk_size=5000):
+        by_district.setdefault(v.parent.parent.code, []).append(v)
+    if not by_district:
+        raise RuntimeError('No villages in this database: run scripts/demo/bootstrap_fresh.py first.')
+    homes = [(code, share) for code, share in HOME_DISTRICTS if code in by_district]
+    others = RNG.sample(sorted(set(by_district) - {c for c, _ in homes}), min(OTHER_DISTRICTS, len(by_district) - len(homes)))
+    rest = max(0.0, 1 - sum(share for _, share in homes))
+    weights = homes + [(code, rest / len(others)) for code in others] if others else homes
+    return by_district, weights
+
+
+def survey_answers(village):
+    answers = {}
+    for key, (level, *values) in SURVEY.items():
+        if level == 'h':
+            answers[key] = RNG.choices([v for v, _ in values], weights=[w for _, w in values])[0]
+    ward = village.parent
+    district = ward.parent if ward else None
+    region = district.parent if district else None
+    answers.update(village_name=village.name, ward_name=ward and ward.name, district_name=district and district.name,
+                   region_name=region and region.name)
+    return answers
+
+
+def invent_members():
+    size = weighted([(1, 8), (2, 12), (3, 16), (4, 18), (5, 16), (6, 12), (7, 8), (8, 6), (9, 4)])
+    head_sex = 'M' if RNG.random() < 0.62 else 'F'
+    head_age = RNG.randint(24, 82)
+    members = [('1', 'HEAD', head_sex, head_age)]
+    if size > 1 and RNG.random() < (0.7 if head_sex == 'M' else 0.25):
+        members.append(('2', 'SPOUSE', 'F' if head_sex == 'M' else 'M', max(18, head_age + RNG.randint(-12, 6))))
+    if head_age < 45 and len(members) < size and RNG.random() < 0.15:
+        parent = ('MOTHER', 'F') if RNG.random() < 0.75 else ('FATHER', 'M')
+        members.append(('6', parent[0], parent[1], head_age + RNG.randint(20, 32)))
+    while len(members) < size:
+        sex = RNG.choice('MF')
+        if head_age >= 50 and RNG.random() < 0.45:
+            members.append(('5', 'GRANDSON' if sex == 'M' else 'GRANDDAUGHTER', sex, RNG.randint(0, 17)))
+        elif RNG.random() < 0.08:
+            members.append(('9', 'OTHER RELATIVE', sex, RNG.randint(5, 70)))
+        else:
+            members.append(('3', 'SON' if sex == 'M' else 'DAUGHTER', sex, RNG.randint(0, max(0, min(30, head_age - 16)))))
+    return members
+
+
+def generate_households(n, today):
+    """Invented households on real villages, as the import rows a survey upload carries."""
+    by_district, weights = district_villages()
+    households = {}
+    for index in range(n):
+        village = RNG.choice(by_district[weighted(weights)])
+        answers = survey_answers(village)
+        base = {'location_code': village.code, 'location_name': village.name, 'pssn_wave': 2}
+        if RNG.random() < NON_CONSENTED_SHARE:
+            households[f'new-{index}'] = [{
+                **base, 'individual_role_code': 1, 'individual_role': 'HEAD', 'gender': None, 'dob': '1900-07-01',
+                'hhrep': 1, 'consent_res': 2, 'record_type': 'household_stub', 'member_ordinal': '1', 'external_id': '0',
+                'json_ext': {'raw': answers, 'consent_res': '2', 'record_type': 'household_stub', 'dob_missing': True},
+            }]
+            continue
+        members = invent_members()
+        hhrep = '2' if len(members) > 1 and members[1][0] == '2' and RNG.random() < 0.35 else '1'
+        rows = []
+        for ordinal, (code, role, sex, age) in enumerate(members, start=1):
+            dob = today - timedelta(days=age * 365 + RNG.randint(0, 364))
+            weights_id = SURVEY['mb_id_type'][1:]
+            raw = {**answers, 'age': str(age), 'sex': '1' if sex == 'M' else '2', 'rel_to_hhh': code,
+                   'hh_size': str(len(members)), 'hh_rep': hhrep, 'memberlineno': str(ordinal),
+                   'hhroster__id': str(ordinal),
+                   'mb_id_type': RNG.choices([v for v, _ in weights_id], weights=[w for _, w in weights_id])[0]}
+            rows.append({**base, 'individual_role_code': int(code), 'individual_role': role, 'gender': sex,
+                         'dob': dob.isoformat(), 'hhrep': int(hhrep), 'consent_res': 1, 'member_ordinal': str(ordinal),
+                         'external_id': str(ordinal), 'json_ext': {'raw': raw, 'consent_res': '1', 'pssn_wave': '2'}})
+        households[f'new-{index}'] = rows
+    return households
+
+
 def import_registry(user, counts):
     """Select, anonymise and import; returns the uploads and the one whose PCT task stays open."""
     from api_etl.apps import ApiEtlConfig
@@ -358,10 +523,13 @@ def import_registry(user, counts):
     from individual.models import Group, IndividualDataSourceUpload
 
     today = timezone.now().date()
-    codes = select_source(HOUSEHOLDS)
-    if not codes:
-        raise RuntimeError('No earlier imports to build the demo from (no staged P3 households).')
-    source = load_rows(codes)
+    if source_mode() == 'fresh':
+        source = generate_households(HOUSEHOLDS, today)
+    else:
+        codes = select_source(HOUSEHOLDS)
+        if not codes:
+            raise RuntimeError('No earlier imports to build the demo from (no staged P3 households).')
+        source = load_rows(codes)
     from location.models import Location
     villages = {v.code: v for v in Location.objects.filter(
         type='V', validity_to__isnull=True,
@@ -1038,7 +1206,8 @@ def seed():
         print('No core user to attribute the seed to.')
         return
     counts = {}
-    print(f'1/5 import: {HOUSEHOLDS} real households, anonymised, one upload per district ...')
+    kind = 'generated' if source_mode() == 'fresh' else 'real, anonymised'
+    print(f'1/5 import: {HOUSEHOLDS} households ({kind}), one upload per district ...')
     pct_programme(user, counts)
     uploads, keep_open = import_registry(user, counts)
     tag_rows(IndividualDataSourceUpload, [u.id for u in uploads])
